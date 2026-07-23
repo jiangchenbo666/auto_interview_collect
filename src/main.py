@@ -16,9 +16,10 @@ from pathlib import Path
 - list/export-md: 查看和导出题库
 """
 
-from src.config_loader import get_db_path
+from src.config_loader import get_db_path, get_obsidian_vault_path
+from src.knowledge.obsidian import retrieve_relevant_snippets
 from src.processors.extractor import extract_questions
-from src.scheduler.daily_job import process_pending_questions, run_daily_loop, run_daily_push
+from src.scheduler.daily_job import rebuild_answers, process_pending_questions, run_daily_loop, run_daily_push
 from src.storage.db import init_db
 from src.storage import repository
 from src.viewer.html_builder import build_today_html
@@ -54,8 +55,38 @@ def cmd_import_file(args: argparse.Namespace) -> None:
 def cmd_process(args: argparse.Namespace) -> None:
     """Run classification and answer generation for pending questions."""
     init_db(args.db)
-    count = process_pending_questions(args.db, limit=args.limit)
+    count = process_pending_questions(
+        args.db,
+        vault_path=args.vault,
+        limit=args.limit,
+        use_openai=args.use_openai,
+    )
     print(f"Processed {count} question state transitions.")
+
+
+def cmd_rebuild_answers(args: argparse.Namespace) -> None:
+    """Regenerate existing answers with latest profile and Obsidian notes."""
+    init_db(args.db)
+    count = rebuild_answers(
+        args.db,
+        vault_path=args.vault,
+        limit=args.limit,
+        use_openai=args.use_openai,
+    )
+    print(f"Rebuilt {count} answers.")
+
+
+def cmd_vault_status(args: argparse.Namespace) -> None:
+    """Show whether Obsidian markdown notes can be detected."""
+    root = Path(args.vault)
+    files = list(root.rglob("*.md")) if root.exists() else []
+    print(f"Obsidian vault path: {root}")
+    print(f"Markdown notes found: {len(files)}")
+    if args.query:
+        snippets = retrieve_relevant_snippets(args.query, vault_path=root, limit=args.limit)
+        print(f"Relevant snippets for: {args.query}")
+        for item in snippets:
+            print(f"- {item.title} | score={item.score} | {item.path}")
 
 
 def cmd_daily(args: argparse.Namespace) -> None:
@@ -74,7 +105,14 @@ def cmd_serve_daily(args: argparse.Namespace) -> None:
     """Run a simple foreground daily scheduler."""
     init_db(args.db)
     print(f"Daily scheduler started. time={args.time}, limit={args.limit}, dry_run={args.dry_run}")
-    run_daily_loop(args.db, push_time=args.time, limit=args.limit, dry_run=args.dry_run)
+    run_daily_loop(
+        args.db,
+        push_time=args.time,
+        limit=args.limit,
+        dry_run=args.dry_run,
+        use_openai=args.use_openai,
+        vault_path=args.vault,
+    )
 
 
 def cmd_list(args: argparse.Namespace) -> None:
@@ -107,7 +145,12 @@ def cmd_demo(args: argparse.Namespace) -> None:
         source_url=str(sample_path),
         source_type="file",
     )
-    changed = process_pending_questions(args.db, limit=args.process_limit)
+    changed = process_pending_questions(
+        args.db,
+        vault_path=args.vault,
+        limit=args.process_limit,
+        use_openai=args.use_openai,
+    )
     daily_markdown = run_daily_push(args.db, limit=args.limit, dry_run=True)
     today_questions = repository.get_pending_for_daily(args.db, args.limit)
     rows = repository.export_questions(args.db)
@@ -122,6 +165,8 @@ def cmd_demo(args: argparse.Namespace) -> None:
     print(f"Today's review: {args.today_output}")
     print(f"Today's HTML page: {args.html_output}")
     print(f"Question bank export: {args.bank_output}")
+    print(f"Obsidian vault: {args.vault}")
+    print("Answer mode: OpenAI API" if args.use_openai else "Answer mode: local templates + Obsidian context")
     if args.open:
         open_in_browser(args.html_output)
         print("Opened today's HTML page in your browser.")
@@ -183,8 +228,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_process = init_parser.add_parser("process", help="分类并生成答案")
     p_process.add_argument("--limit", type=int, default=20)
+    p_process.add_argument("--vault", default=get_obsidian_vault_path(), help="Obsidian vault 路径")
+    p_process.add_argument("--use-openai", action="store_true", help="使用 OpenAI API 生成答案")
     add_db_argument(p_process)
     p_process.set_defaults(func=cmd_process)
+
+    p_rebuild = init_parser.add_parser("rebuild-answers", help="根据最新项目经历/Obsidian 笔记重写已有答案")
+    p_rebuild.add_argument("--limit", type=int, default=50)
+    p_rebuild.add_argument("--vault", default=get_obsidian_vault_path(), help="Obsidian vault 路径")
+    p_rebuild.add_argument("--use-openai", action="store_true", help="使用 OpenAI API 生成答案")
+    add_db_argument(p_rebuild)
+    p_rebuild.set_defaults(func=cmd_rebuild_answers)
+
+    p_vault = init_parser.add_parser("vault-status", help="检查 Obsidian 知识库是否能被识别")
+    p_vault.add_argument("--vault", default=get_obsidian_vault_path(), help="Obsidian vault 路径")
+    p_vault.add_argument("--query", help="可选：用一个题目测试相关笔记检索")
+    p_vault.add_argument("--limit", type=int, default=5)
+    p_vault.set_defaults(func=cmd_vault_status)
 
     p_daily = init_parser.add_parser("daily", help="生成或推送今日学习内容")
     p_daily.add_argument("--limit", type=int, default=3)
@@ -197,6 +257,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_serve.add_argument("--time", default="08:30", help="每日推送时间，格式 HH:MM")
     p_serve.add_argument("--limit", type=int, default=3)
     p_serve.add_argument("--dry-run", action="store_true")
+    p_serve.add_argument("--vault", default=get_obsidian_vault_path(), help="Obsidian vault 路径")
+    p_serve.add_argument("--use-openai", action="store_true", help="使用 OpenAI API 生成答案")
     add_db_argument(p_serve)
     p_serve.set_defaults(func=cmd_serve_daily)
 
@@ -218,6 +280,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_demo.add_argument("--html-output", default=DEFAULT_TODAY_HTML_OUTPUT)
     p_demo.add_argument("--bank-output", default=DEFAULT_BANK_OUTPUT)
     p_demo.add_argument("--open", action=argparse.BooleanOptionalAction, default=True, help="生成后是否自动打开浏览器")
+    p_demo.add_argument("--vault", default=get_obsidian_vault_path(), help="Obsidian vault 路径")
+    p_demo.add_argument("--use-openai", action="store_true", help="使用 OpenAI API 生成答案")
     add_db_argument(p_demo)
     p_demo.set_defaults(func=cmd_demo)
 

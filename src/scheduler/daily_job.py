@@ -17,6 +17,8 @@ from datetime import datetime
 from src.processors.answer_generator import generate_standard_answer
 from src.processors.classifier import classify_question
 from src.processors.project_adapter import build_project_answer, load_project_profile
+from src.knowledge.obsidian import format_snippets, retrieve_relevant_snippets
+from src.llm.openai_client import generate_interview_answer_with_openai, has_openai_config
 from src.push.markdown_builder import build_daily_markdown
 from src.push.wecom_bot import send_markdown
 from src.storage import repository
@@ -25,7 +27,9 @@ from src.storage import repository
 def process_pending_questions(
     db_path: str | Path,
     profile_path: str | Path = "docs/project_profile.md",
+    vault_path: str | Path = "data/obsidian",
     limit: int = 20,
+    use_openai: bool = False,
 ) -> int:
     """Move pending questions through classify -> answer -> package steps."""
     profile = load_project_profile(profile_path)
@@ -41,12 +45,68 @@ def process_pending_questions(
     answered_count = 0
     for item in classified:
         category = item.get("category") or "测试基础"
-        answer = generate_standard_answer(item["question"], category)
-        project_answer = build_project_answer(item["question"], category, answer, profile)
+        snippets = retrieve_relevant_snippets(item["question"], vault_path=vault_path)
+        knowledge_context = format_snippets(snippets)
+        if use_openai and has_openai_config():
+            answer, project_answer = generate_interview_answer_with_openai(
+                item["question"],
+                category,
+                knowledge_context,
+                profile,
+            )
+        else:
+            answer = generate_standard_answer(item["question"], category)
+            project_answer = build_project_answer(
+                item["question"],
+                category,
+                answer,
+                f"{profile}\n\nObsidian 相关笔记：\n{knowledge_context}",
+            )
         repository.update_question_answer(db_path, item["id"], answer, project_answer)
         answered_count += 1
 
     return classified_count + answered_count
+
+
+def rebuild_answers(
+    db_path: str | Path,
+    profile_path: str | Path = "docs/project_profile.md",
+    vault_path: str | Path = "data/obsidian",
+    limit: int = 50,
+    use_openai: bool = False,
+) -> int:
+    """Regenerate answers for existing questions after notes/profile changed."""
+    profile = load_project_profile(profile_path)
+    questions = repository.export_questions(db_path)[:limit]
+    changed = 0
+
+    for item in questions:
+        category = item.get("category")
+        if not category:
+            category, difficulty = classify_question(item["question"])
+            repository.update_question_category(db_path, item["id"], category, difficulty)
+
+        snippets = retrieve_relevant_snippets(item["question"], vault_path=vault_path)
+        knowledge_context = format_snippets(snippets)
+        if use_openai and has_openai_config():
+            answer, project_answer = generate_interview_answer_with_openai(
+                item["question"],
+                category,
+                knowledge_context,
+                profile,
+            )
+        else:
+            answer = generate_standard_answer(item["question"], category)
+            project_answer = build_project_answer(
+                item["question"],
+                category,
+                answer,
+                f"{profile}\n\nObsidian 相关笔记：\n{knowledge_context}",
+            )
+        repository.update_question_answer(db_path, item["id"], answer, project_answer)
+        changed += 1
+
+    return changed
 
 
 def run_daily_push(
@@ -69,6 +129,8 @@ def run_daily_loop(
     push_time: str = "08:30",
     limit: int = 3,
     dry_run: bool = False,
+    use_openai: bool = False,
+    vault_path: str | Path = "data/obsidian",
 ) -> None:
     """A tiny foreground scheduler for local MVP usage.
 
@@ -81,7 +143,12 @@ def run_daily_loop(
         today = now.strftime("%Y-%m-%d")
         current_time = now.strftime("%H:%M")
         if current_time == push_time and last_run_date != today:
-            process_pending_questions(db_path, limit=50)
+            process_pending_questions(
+                db_path,
+                limit=50,
+                use_openai=use_openai,
+                vault_path=vault_path,
+            )
             markdown = run_daily_push(db_path, limit=limit, dry_run=dry_run)
             print(markdown)
             last_run_date = today

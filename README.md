@@ -34,6 +34,66 @@ run_demo.bat
 - `data/exports/today.md`：今日复习内容
 - `data/exports/questions.md`：完整题库导出
 
+## 接入 Obsidian 知识库
+
+推荐把你的 Obsidian vault 放到：
+
+```text
+data/obsidian/
+```
+
+例如：
+
+```text
+data/obsidian/我的项目笔记/
+data/obsidian/实习复盘/
+data/obsidian/安全测试总结.md
+```
+
+然后检查是否识别到笔记：
+
+```bash
+python -m src.main vault-status
+```
+
+用一道题测试相关笔记检索：
+
+```bash
+python -m src.main vault-status --query "接口测试如何设计鉴权用例？"
+```
+
+如果你更新了 Obsidian 项目笔记，想让已有题目的“面试表达”重新结合笔记生成：
+
+```bash
+python -m src.main rebuild-answers --limit 50
+python -m src.main demo
+```
+
+注意：`data/obsidian/` 已经被 `.gitignore` 忽略，不会把你的私人笔记提交到 GitHub。
+
+## 使用 OpenAI 生成答案
+
+默认情况下，项目使用本地模板 + Obsidian 检索片段，不需要 API key。
+
+如果你想让所有答案调用 OpenAI 模型生成：
+
+1. 复制 `.env.example` 为 `.env`
+2. 填入：
+
+```text
+OPENAI_API_KEY=你的 API key
+OPENAI_MODEL=gpt-5
+```
+
+然后运行：
+
+```bash
+python -m src.main rebuild-answers --use-openai --limit 20
+python -m src.main demo --use-openai
+```
+
+没有 `--use-openai` 时，不会调用 API。
+
 手动分步运行：
 
 ```bash

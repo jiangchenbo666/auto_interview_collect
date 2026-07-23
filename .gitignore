@@ -4,6 +4,8 @@ __pycache__/
 .agents/
 .env
 data/interview.db
+data/obsidian/*
+!data/obsidian/.gitkeep
 data/processed/*
 data/exports/*
 !data/processed/.gitkeep

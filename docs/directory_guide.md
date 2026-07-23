@@ -30,6 +30,7 @@ TestDev-Interview-Agent/
 放本地运行产生的数据。
 
 - `raw/`：原始面经文本，比如你从牛客、博客、GitHub 复制下来的 `.md` / `.txt`。
+- `obsidian/`：你的 Obsidian 知识库入口。把 vault 或部分笔记放进来后，程序会按题目检索相关项目经历。
 - `processed/`：后续可放清洗后的中间文件。
 - `exports/`：导出的 Markdown 题库。
 - `interview.db`：SQLite 数据库，运行 `init` 后生成。
