@@ -109,6 +109,12 @@ def build_today_html(questions: list[dict[str, Any]]) -> str:
       font-size: 15px;
       font-weight: 700;
     }}
+    .source {{
+      color: var(--muted);
+      font-size: 13px;
+      margin: -6px 0 14px;
+      word-break: break-all;
+    }}
     .answer {{
       white-space: pre-wrap;
       margin: 0;
@@ -152,6 +158,7 @@ def build_question_card(index: int, item: dict[str, Any]) -> str:
     question = escape(str(item.get("question") or "未命名题目"))
     category = escape(str(item.get("category") or "未分类"))
     difficulty = escape(str(item.get("difficulty") or "medium"))
+    source = escape(str(item.get("source_url") or "未记录"))
     answer = escape(str(item.get("answer") or "待生成"))
     project_answer = escape(str(item.get("project_answer") or item.get("answer") or "待生成"))
 
@@ -162,6 +169,7 @@ def build_question_card(index: int, item: dict[str, Any]) -> str:
         <span class="tag">分类：{category}</span>
         <span class="tag">难度：{difficulty}</span>
       </div>
+      <div class="source">来源：{source}</div>
       <div class="section-title">标准答案</div>
       <p class="answer">{answer}</p>
       <div class="section-title">面试表达</div>

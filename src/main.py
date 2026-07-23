@@ -40,16 +40,47 @@ def cmd_import_file(args: argparse.Namespace) -> None:
     """Read a local md/txt file, extract questions, and store them."""
     init_db(args.db)
     path = Path(args.path)
-    text = path.read_text(encoding="utf-8")
+    result, extracted = import_one_file(args.db, path, source_type=args.source_type)
+    print(f"Extracted {extracted} questions.")
+    print(f"Accepted {result['accepted']}, skipped {result['skipped']}.")
+
+
+def cmd_import_folder(args: argparse.Namespace) -> None:
+    """Import all md/txt files in a folder as real interview material."""
+    init_db(args.db)
+    root = Path(args.path)
+    if not root.exists():
+        raise FileNotFoundError(f"Folder not found: {root}")
+
+    files = [
+        path for path in root.rglob("*")
+        if path.is_file() and path.suffix.lower() in {".md", ".txt"}
+    ]
+    total_extracted = 0
+    total_accepted = 0
+    total_skipped = 0
+    for path in files:
+        result, extracted = import_one_file(args.db, path, source_type=args.source_type)
+        total_extracted += extracted
+        total_accepted += result["accepted"]
+        total_skipped += result["skipped"]
+
+    print(f"Files scanned: {len(files)}")
+    print(f"Extracted {total_extracted} questions.")
+    print(f"Accepted {total_accepted}, skipped {total_skipped}.")
+
+
+def import_one_file(db_path: str, path: Path, source_type: str = "real_interview") -> tuple[dict[str, int], int]:
+    """Extract and store questions from one source file."""
+    text = path.read_text(encoding="utf-8", errors="ignore")
     questions = extract_questions(text)
     result = repository.bulk_insert_questions(
-        args.db,
+        db_path,
         questions,
         source_url=str(path),
-        source_type="file",
+        source_type=source_type,
     )
-    print(f"Extracted {len(questions)} questions.")
-    print(f"Accepted {result['accepted']}, skipped {result['skipped']}.")
+    return result, len(questions)
 
 
 def cmd_process(args: argparse.Namespace) -> None:
@@ -223,8 +254,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_import = init_parser.add_parser("import-file", help="从 md/txt 文件导入题目")
     p_import.add_argument("path")
+    p_import.add_argument("--source-type", default="real_interview", help="来源类型，例如 nowcoder/github/blog/manual")
     add_db_argument(p_import)
     p_import.set_defaults(func=cmd_import_file)
+
+    p_import_folder = init_parser.add_parser("import-folder", help="批量导入文件夹下的真实 md/txt 面经")
+    p_import_folder.add_argument("path")
+    p_import_folder.add_argument("--source-type", default="real_interview", help="来源类型，例如 nowcoder/github/blog/manual")
+    add_db_argument(p_import_folder)
+    p_import_folder.set_defaults(func=cmd_import_folder)
 
     p_process = init_parser.add_parser("process", help="分类并生成答案")
     p_process.add_argument("--limit", type=int, default=20)

@@ -16,6 +16,8 @@
 
 ## 快速开始
 
+先说明一句：项目自带的 `data/raw/sample_questions.md` 只是演示数据，不是真实面经。真实八股/面经需要你导入自己保存的材料。
+
 最省事的方式：
 
 ```bash
@@ -33,6 +35,32 @@ run_demo.bat
 - `data/exports/today.html`：浏览器版今日复习页面，会自动打开
 - `data/exports/today.md`：今日复习内容
 - `data/exports/questions.md`：完整题库导出
+
+## 导入真实面经和八股文
+
+把真实材料放到：
+
+```text
+data/raw/real_interviews/
+```
+
+支持 `.md` 和 `.txt`。例如：
+
+```text
+data/raw/real_interviews/nowcoder-字节测开一面.md
+data/raw/real_interviews/github-测试开发八股.md
+data/raw/real_interviews/blog-安全测试面试题.txt
+```
+
+然后执行：
+
+```bash
+python -m src.main import-folder data/raw/real_interviews
+python -m src.main rebuild-answers --use-llm --limit 50
+python -m src.main demo --use-llm
+```
+
+页面会显示每道题的来源路径。这样你能区分哪些题来自真实材料，哪些只是 demo。
 
 ## 接入 Obsidian 知识库
 
@@ -102,6 +130,7 @@ python -m src.main demo --use-llm
 cd TestDev-Interview-Agent
 python -m src.main init
 python -m src.main import-file data/raw/sample_questions.md
+python -m src.main import-folder data/raw/real_interviews
 python -m src.main process --limit 20
 python -m src.main daily --limit 3 --dry-run
 ```

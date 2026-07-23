@@ -15,6 +15,7 @@ def build_daily_markdown(questions: list[dict[str, Any]]) -> str:
                 f"## {index}. {item['question']}",
                 f"分类：{item.get('category') or '未分类'}",
                 f"难度：{item.get('difficulty') or 'medium'}",
+                f"来源：{item.get('source_url') or '未记录'}",
                 "",
                 "标准答案：",
                 item.get("answer") or "待生成",
