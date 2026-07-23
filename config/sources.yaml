@@ -1,0 +1,13 @@
+sources:
+  - name: manual_markdown
+    type: file
+    enabled: true
+    note: 第一阶段优先使用手动保存的 md/txt 面经。
+  - name: github_raw
+    type: url
+    enabled: false
+    note: 后续可导入 GitHub raw 文本。
+  - name: blog_url
+    type: url
+    enabled: false
+    note: 后续可抓取公开博客页面。

@@ -1,0 +1,88 @@
+from __future__ import annotations
+
+from pathlib import Path
+import time
+from datetime import datetime
+
+"""High-level daily workflow.
+
+这个文件是 MVP 的主业务链路：
+1. 读取 raw 题目
+2. 分类
+3. 生成标准答案和面试表达
+4. 选择今日复习题
+5. dry-run 输出或真实推送
+"""
+
+from src.processors.answer_generator import generate_standard_answer
+from src.processors.classifier import classify_question
+from src.processors.project_adapter import build_project_answer, load_project_profile
+from src.push.markdown_builder import build_daily_markdown
+from src.push.wecom_bot import send_markdown
+from src.storage import repository
+
+
+def process_pending_questions(
+    db_path: str | Path,
+    profile_path: str | Path = "docs/project_profile.md",
+    limit: int = 20,
+) -> int:
+    """Move pending questions through classify -> answer -> package steps."""
+    profile = load_project_profile(profile_path)
+    raw_questions = repository.get_questions_by_status(db_path, "raw", limit)
+    classified_count = 0
+
+    for item in raw_questions:
+        category, difficulty = classify_question(item["question"])
+        repository.update_question_category(db_path, item["id"], category, difficulty)
+        classified_count += 1
+
+    classified = repository.get_questions_by_status(db_path, "classified", limit)
+    answered_count = 0
+    for item in classified:
+        category = item.get("category") or "测试基础"
+        answer = generate_standard_answer(item["question"], category)
+        project_answer = build_project_answer(item["question"], category, answer, profile)
+        repository.update_question_answer(db_path, item["id"], answer, project_answer)
+        answered_count += 1
+
+    return classified_count + answered_count
+
+
+def run_daily_push(
+    db_path: str | Path,
+    limit: int = 3,
+    dry_run: bool = False,
+) -> str:
+    """Build today's markdown and optionally send it to WeCom."""
+    questions = repository.get_pending_for_daily(db_path, limit)
+    markdown = build_daily_markdown(questions)
+    if not dry_run and questions:
+        send_markdown(markdown)
+        for item in questions:
+            repository.mark_pushed(db_path, item["id"])
+    return markdown
+
+
+def run_daily_loop(
+    db_path: str | Path,
+    push_time: str = "08:30",
+    limit: int = 3,
+    dry_run: bool = False,
+) -> None:
+    """A tiny foreground scheduler for local MVP usage.
+
+    It checks time every 30 seconds. For long-term production use, prefer
+    Windows Task Scheduler, cron, or a proper service manager.
+    """
+    last_run_date: str | None = None
+    while True:
+        now = datetime.now()
+        today = now.strftime("%Y-%m-%d")
+        current_time = now.strftime("%H:%M")
+        if current_time == push_time and last_run_date != today:
+            process_pending_questions(db_path, limit=50)
+            markdown = run_daily_push(db_path, limit=limit, dry_run=dry_run)
+            print(markdown)
+            last_run_date = today
+        time.sleep(30)
