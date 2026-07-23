@@ -18,7 +18,7 @@ from src.processors.answer_generator import generate_standard_answer
 from src.processors.classifier import classify_question
 from src.processors.project_adapter import build_project_answer, load_project_profile
 from src.knowledge.obsidian import format_snippets, retrieve_relevant_snippets
-from src.llm.openai_client import generate_interview_answer_with_openai, has_openai_config
+from src.llm.provider import generate_interview_answer_with_llm, has_llm_config
 from src.push.markdown_builder import build_daily_markdown
 from src.push.wecom_bot import send_markdown
 from src.storage import repository
@@ -29,7 +29,7 @@ def process_pending_questions(
     profile_path: str | Path = "docs/project_profile.md",
     vault_path: str | Path = "data/obsidian",
     limit: int = 20,
-    use_openai: bool = False,
+    use_llm: bool = False,
 ) -> int:
     """Move pending questions through classify -> answer -> package steps."""
     profile = load_project_profile(profile_path)
@@ -47,8 +47,8 @@ def process_pending_questions(
         category = item.get("category") or "测试基础"
         snippets = retrieve_relevant_snippets(item["question"], vault_path=vault_path)
         knowledge_context = format_snippets(snippets)
-        if use_openai and has_openai_config():
-            answer, project_answer = generate_interview_answer_with_openai(
+        if use_llm and has_llm_config():
+            answer, project_answer = generate_interview_answer_with_llm(
                 item["question"],
                 category,
                 knowledge_context,
@@ -73,7 +73,7 @@ def rebuild_answers(
     profile_path: str | Path = "docs/project_profile.md",
     vault_path: str | Path = "data/obsidian",
     limit: int = 50,
-    use_openai: bool = False,
+    use_llm: bool = False,
 ) -> int:
     """Regenerate answers for existing questions after notes/profile changed."""
     profile = load_project_profile(profile_path)
@@ -88,8 +88,8 @@ def rebuild_answers(
 
         snippets = retrieve_relevant_snippets(item["question"], vault_path=vault_path)
         knowledge_context = format_snippets(snippets)
-        if use_openai and has_openai_config():
-            answer, project_answer = generate_interview_answer_with_openai(
+        if use_llm and has_llm_config():
+            answer, project_answer = generate_interview_answer_with_llm(
                 item["question"],
                 category,
                 knowledge_context,
@@ -129,7 +129,7 @@ def run_daily_loop(
     push_time: str = "08:30",
     limit: int = 3,
     dry_run: bool = False,
-    use_openai: bool = False,
+    use_llm: bool = False,
     vault_path: str | Path = "data/obsidian",
 ) -> None:
     """A tiny foreground scheduler for local MVP usage.
@@ -146,7 +146,7 @@ def run_daily_loop(
             process_pending_questions(
                 db_path,
                 limit=50,
-                use_openai=use_openai,
+                use_llm=use_llm,
                 vault_path=vault_path,
             )
             markdown = run_daily_push(db_path, limit=limit, dry_run=dry_run)

@@ -71,28 +71,30 @@ python -m src.main demo
 
 注意：`data/obsidian/` 已经被 `.gitignore` 忽略，不会把你的私人笔记提交到 GitHub。
 
-## 使用 OpenAI 生成答案
+## 使用 DeepSeek API 生成答案
 
 默认情况下，项目使用本地模板 + Obsidian 检索片段，不需要 API key。
 
-如果你想让所有答案调用 OpenAI 模型生成：
+如果你想让所有答案调用 DeepSeek 模型生成：
 
 1. 复制 `.env.example` 为 `.env`
 2. 填入：
 
 ```text
-OPENAI_API_KEY=你的 API key
-OPENAI_MODEL=gpt-5
+LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY=你的 DeepSeek API key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-flash
 ```
 
 然后运行：
 
 ```bash
-python -m src.main rebuild-answers --use-openai --limit 20
-python -m src.main demo --use-openai
+python -m src.main rebuild-answers --use-llm --limit 20
+python -m src.main demo --use-llm
 ```
 
-没有 `--use-openai` 时，不会调用 API。
+没有 `--use-llm` 时，不会调用 API。`.env` 已经被 `.gitignore` 忽略，不会上传到 GitHub。
 
 手动分步运行：
 

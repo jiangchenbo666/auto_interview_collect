@@ -59,7 +59,7 @@ def cmd_process(args: argparse.Namespace) -> None:
         args.db,
         vault_path=args.vault,
         limit=args.limit,
-        use_openai=args.use_openai,
+        use_llm=args.use_llm,
     )
     print(f"Processed {count} question state transitions.")
 
@@ -71,7 +71,7 @@ def cmd_rebuild_answers(args: argparse.Namespace) -> None:
         args.db,
         vault_path=args.vault,
         limit=args.limit,
-        use_openai=args.use_openai,
+        use_llm=args.use_llm,
     )
     print(f"Rebuilt {count} answers.")
 
@@ -110,7 +110,7 @@ def cmd_serve_daily(args: argparse.Namespace) -> None:
         push_time=args.time,
         limit=args.limit,
         dry_run=args.dry_run,
-        use_openai=args.use_openai,
+        use_llm=args.use_llm,
         vault_path=args.vault,
     )
 
@@ -149,7 +149,7 @@ def cmd_demo(args: argparse.Namespace) -> None:
         args.db,
         vault_path=args.vault,
         limit=args.process_limit,
-        use_openai=args.use_openai,
+        use_llm=args.use_llm,
     )
     daily_markdown = run_daily_push(args.db, limit=args.limit, dry_run=True)
     today_questions = repository.get_pending_for_daily(args.db, args.limit)
@@ -166,7 +166,7 @@ def cmd_demo(args: argparse.Namespace) -> None:
     print(f"Today's HTML page: {args.html_output}")
     print(f"Question bank export: {args.bank_output}")
     print(f"Obsidian vault: {args.vault}")
-    print("Answer mode: OpenAI API" if args.use_openai else "Answer mode: local templates + Obsidian context")
+    print("Answer mode: configured LLM API" if args.use_llm else "Answer mode: local templates + Obsidian context")
     if args.open:
         open_in_browser(args.html_output)
         print("Opened today's HTML page in your browser.")
@@ -229,14 +229,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_process = init_parser.add_parser("process", help="分类并生成答案")
     p_process.add_argument("--limit", type=int, default=20)
     p_process.add_argument("--vault", default=get_obsidian_vault_path(), help="Obsidian vault 路径")
-    p_process.add_argument("--use-openai", action="store_true", help="使用 OpenAI API 生成答案")
+    p_process.add_argument("--use-llm", action="store_true", help="使用 .env 中配置的 LLM API 生成答案")
     add_db_argument(p_process)
     p_process.set_defaults(func=cmd_process)
 
     p_rebuild = init_parser.add_parser("rebuild-answers", help="根据最新项目经历/Obsidian 笔记重写已有答案")
     p_rebuild.add_argument("--limit", type=int, default=50)
     p_rebuild.add_argument("--vault", default=get_obsidian_vault_path(), help="Obsidian vault 路径")
-    p_rebuild.add_argument("--use-openai", action="store_true", help="使用 OpenAI API 生成答案")
+    p_rebuild.add_argument("--use-llm", action="store_true", help="使用 .env 中配置的 LLM API 生成答案")
     add_db_argument(p_rebuild)
     p_rebuild.set_defaults(func=cmd_rebuild_answers)
 
@@ -258,7 +258,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_serve.add_argument("--limit", type=int, default=3)
     p_serve.add_argument("--dry-run", action="store_true")
     p_serve.add_argument("--vault", default=get_obsidian_vault_path(), help="Obsidian vault 路径")
-    p_serve.add_argument("--use-openai", action="store_true", help="使用 OpenAI API 生成答案")
+    p_serve.add_argument("--use-llm", action="store_true", help="使用 .env 中配置的 LLM API 生成答案")
     add_db_argument(p_serve)
     p_serve.set_defaults(func=cmd_serve_daily)
 
@@ -281,7 +281,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_demo.add_argument("--bank-output", default=DEFAULT_BANK_OUTPUT)
     p_demo.add_argument("--open", action=argparse.BooleanOptionalAction, default=True, help="生成后是否自动打开浏览器")
     p_demo.add_argument("--vault", default=get_obsidian_vault_path(), help="Obsidian vault 路径")
-    p_demo.add_argument("--use-openai", action="store_true", help="使用 OpenAI API 生成答案")
+    p_demo.add_argument("--use-llm", action="store_true", help="使用 .env 中配置的 LLM API 生成答案")
     add_db_argument(p_demo)
     p_demo.set_defaults(func=cmd_demo)
 
