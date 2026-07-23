@@ -22,6 +22,10 @@ from src.storage.db import init_db
 from src.storage import repository
 
 
+DEFAULT_TODAY_OUTPUT = "data/exports/today.md"
+DEFAULT_BANK_OUTPUT = "data/exports/questions.md"
+
+
 def cmd_init(args: argparse.Namespace) -> None:
     """Initialize local database."""
     init_db(args.db)
@@ -55,6 +59,9 @@ def cmd_daily(args: argparse.Namespace) -> None:
     """Build today's review markdown; send it unless dry-run is enabled."""
     init_db(args.db)
     markdown = run_daily_push(args.db, limit=args.limit, dry_run=args.dry_run)
+    if args.output:
+        write_text_file(args.output, markdown)
+        print(f"Saved daily review to {args.output}\n")
     print(markdown)
     if args.dry_run:
         print("\nDry run only. Nothing was sent.")
@@ -82,6 +89,44 @@ def cmd_export_md(args: argparse.Namespace) -> None:
     """Export the whole question bank as a markdown document."""
     init_db(args.db)
     rows = repository.export_questions(args.db)
+    write_text_file(args.output, build_question_bank_markdown(rows))
+    print(f"Exported {len(rows)} questions to {args.output}")
+
+
+def cmd_demo(args: argparse.Namespace) -> None:
+    """One-command local demo: init -> import sample -> process -> export."""
+    init_db(args.db)
+    sample_path = Path("data/raw/sample_questions.md")
+    questions = extract_questions(sample_path.read_text(encoding="utf-8"))
+    result = repository.bulk_insert_questions(
+        args.db,
+        questions,
+        source_url=str(sample_path),
+        source_type="file",
+    )
+    changed = process_pending_questions(args.db, limit=args.process_limit)
+    daily_markdown = run_daily_push(args.db, limit=args.limit, dry_run=True)
+    rows = repository.export_questions(args.db)
+
+    write_text_file(args.today_output, daily_markdown)
+    write_text_file(args.bank_output, build_question_bank_markdown(rows))
+
+    print("Demo completed.")
+    print(f"Imported sample questions: accepted={result['accepted']}, skipped={result['skipped']}")
+    print(f"Processed state transitions: {changed}")
+    print(f"Today's review: {args.today_output}")
+    print(f"Question bank export: {args.bank_output}")
+
+
+def write_text_file(path: str | Path, text: str) -> None:
+    """Write UTF-8 text and create parent folders when needed."""
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(text, encoding="utf-8")
+
+
+def build_question_bank_markdown(rows: list[dict]) -> str:
+    """Render the whole SQLite question bank as a readable Markdown file."""
     lines = ["# 面试题库导出", ""]
     for row in rows:
         lines.extend(
@@ -100,10 +145,7 @@ def cmd_export_md(args: argparse.Namespace) -> None:
                 "",
             ]
         )
-    output = Path(args.output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text("\n".join(lines), encoding="utf-8")
-    print(f"Exported {len(rows)} questions to {output}")
+    return "\n".join(lines)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -133,6 +175,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_daily = init_parser.add_parser("daily", help="生成或推送今日学习内容")
     p_daily.add_argument("--limit", type=int, default=3)
     p_daily.add_argument("--dry-run", action="store_true")
+    p_daily.add_argument("--output", help="把今日复习内容保存为 Markdown 文件")
     add_db_argument(p_daily)
     p_daily.set_defaults(func=cmd_daily)
 
@@ -153,6 +196,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_export.add_argument("output")
     add_db_argument(p_export)
     p_export.set_defaults(func=cmd_export_md)
+
+    p_demo = init_parser.add_parser("demo", help="一条命令跑通本地演示并导出 Markdown")
+    p_demo.add_argument("--limit", type=int, default=3, help="今日复习题目数量")
+    p_demo.add_argument("--process-limit", type=int, default=50, help="本次最多处理多少道待处理题")
+    p_demo.add_argument("--today-output", default=DEFAULT_TODAY_OUTPUT)
+    p_demo.add_argument("--bank-output", default=DEFAULT_BANK_OUTPUT)
+    add_db_argument(p_demo)
+    p_demo.set_defaults(func=cmd_demo)
 
     return parser
 

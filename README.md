@@ -16,6 +16,25 @@
 
 ## 快速开始
 
+最省事的方式：
+
+```bash
+python -m src.main demo
+```
+
+或者在 Windows 下双击：
+
+```text
+run_demo.bat
+```
+
+它会自动初始化数据库、导入样例题、生成答案，并导出：
+
+- `data/exports/today.md`：今日复习内容
+- `data/exports/questions.md`：完整题库导出
+
+手动分步运行：
+
 ```bash
 cd TestDev-Interview-Agent
 python -m src.main init
@@ -55,7 +74,7 @@ python -m src.main init
 python -m src.main import-file <path>
 python -m src.main list --status raw
 python -m src.main process --limit 30
-python -m src.main daily --limit 5 --dry-run
+python -m src.main daily --limit 5 --dry-run --output data/exports/today.md
 python -m src.main export-md data/exports/questions.md
 ```
 
