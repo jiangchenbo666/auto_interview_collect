@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import webbrowser
 from pathlib import Path
 
 """Command line entrypoint.
@@ -20,9 +21,11 @@ from src.processors.extractor import extract_questions
 from src.scheduler.daily_job import process_pending_questions, run_daily_loop, run_daily_push
 from src.storage.db import init_db
 from src.storage import repository
+from src.viewer.html_builder import build_today_html
 
 
 DEFAULT_TODAY_OUTPUT = "data/exports/today.md"
+DEFAULT_TODAY_HTML_OUTPUT = "data/exports/today.html"
 DEFAULT_BANK_OUTPUT = "data/exports/questions.md"
 
 
@@ -94,7 +97,7 @@ def cmd_export_md(args: argparse.Namespace) -> None:
 
 
 def cmd_demo(args: argparse.Namespace) -> None:
-    """One-command local demo: init -> import sample -> process -> export."""
+    """One-command local demo: init -> import sample -> process -> export -> open."""
     init_db(args.db)
     sample_path = Path("data/raw/sample_questions.md")
     questions = extract_questions(sample_path.read_text(encoding="utf-8"))
@@ -106,16 +109,22 @@ def cmd_demo(args: argparse.Namespace) -> None:
     )
     changed = process_pending_questions(args.db, limit=args.process_limit)
     daily_markdown = run_daily_push(args.db, limit=args.limit, dry_run=True)
+    today_questions = repository.get_pending_for_daily(args.db, args.limit)
     rows = repository.export_questions(args.db)
 
     write_text_file(args.today_output, daily_markdown)
+    write_text_file(args.html_output, build_today_html(today_questions))
     write_text_file(args.bank_output, build_question_bank_markdown(rows))
 
     print("Demo completed.")
     print(f"Imported sample questions: accepted={result['accepted']}, skipped={result['skipped']}")
     print(f"Processed state transitions: {changed}")
     print(f"Today's review: {args.today_output}")
+    print(f"Today's HTML page: {args.html_output}")
     print(f"Question bank export: {args.bank_output}")
+    if args.open:
+        open_in_browser(args.html_output)
+        print("Opened today's HTML page in your browser.")
 
 
 def write_text_file(path: str | Path, text: str) -> None:
@@ -123,6 +132,11 @@ def write_text_file(path: str | Path, text: str) -> None:
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(text, encoding="utf-8")
+
+
+def open_in_browser(path: str | Path) -> None:
+    """Open a local file in the default browser."""
+    webbrowser.open(Path(path).resolve().as_uri())
 
 
 def build_question_bank_markdown(rows: list[dict]) -> str:
@@ -201,7 +215,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_demo.add_argument("--limit", type=int, default=3, help="今日复习题目数量")
     p_demo.add_argument("--process-limit", type=int, default=50, help="本次最多处理多少道待处理题")
     p_demo.add_argument("--today-output", default=DEFAULT_TODAY_OUTPUT)
+    p_demo.add_argument("--html-output", default=DEFAULT_TODAY_HTML_OUTPUT)
     p_demo.add_argument("--bank-output", default=DEFAULT_BANK_OUTPUT)
+    p_demo.add_argument("--open", action=argparse.BooleanOptionalAction, default=True, help="生成后是否自动打开浏览器")
     add_db_argument(p_demo)
     p_demo.set_defaults(func=cmd_demo)
 

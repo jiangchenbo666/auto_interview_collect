@@ -30,6 +30,7 @@ run_demo.bat
 
 它会自动初始化数据库、导入样例题、生成答案，并导出：
 
+- `data/exports/today.html`：浏览器版今日复习页面，会自动打开
 - `data/exports/today.md`：今日复习内容
 - `data/exports/questions.md`：完整题库导出
 
