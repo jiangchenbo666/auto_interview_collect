@@ -1,5 +1,34 @@
 # auto_interview_collect
 
+## GitHub Actions 自动化流水线
+
+仓库内置 `.github/workflows/daily-pipeline.yml`，每天北京时间 08:00 自动运行，也可以在 GitHub 的 Actions 页面手动点 `Run workflow`。
+
+流水线会自动做这些事：
+
+- 拉取 `config/real_sources.yaml` 中的公开真实来源
+- 增量抽题并写入 SQLite，题目 hash 去重
+- 调用 DeepSeek 生成答案；如果没配置 key，会退回本地模板答案
+- 生成 `public/index.html`、`public/today.md`、`public/questions.md`
+- 部署到 GitHub Pages
+- 如果配置了钉钉机器人，会把 `today.md` 推送到手机
+
+第一次使用需要在 GitHub 仓库配置：
+
+1. `Settings -> Secrets and variables -> Actions -> New repository secret`
+2. 新增 `DEEPSEEK_API_KEY`
+3. 可选新增 `DINGTALK_WEBHOOK_URL`
+4. 如果钉钉机器人开启了加签，再新增 `DINGTALK_SECRET`
+5. `Settings -> Pages -> Source` 选择 `GitHub Actions`
+
+部署成功后，页面地址通常是：
+
+```text
+https://jiangchenbo666.github.io/auto_interview_collect/
+```
+
+注意：GitHub Actions 用 cache 保存 `data/interview.db`，能满足 MVP 的“每天不重复”需求，但它不是强数据库。后续如果要更稳，可以换成 Supabase、云端 SQLite 备份，或者把题库导出为 artifact。
+
 测开/安全测试面经收集、自动整理和每日企业微信推送工具。
 
 这个项目也叫 **TestDev Interview Agent**。它的定位是：帮测试开发/安全测试方向同学把零散面经整理成可复习、可推送、可包装成面试表达的本地知识库。

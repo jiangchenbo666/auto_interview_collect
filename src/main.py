@@ -23,6 +23,7 @@ from src.processors.extractor import extract_questions, is_noise_question
 from src.scheduler.daily_job import get_review_questions_for_today, rebuild_answers, process_pending_questions, run_daily_loop, run_daily_push
 from src.storage.db import init_db
 from src.storage import repository
+from src.push.dingtalk_bot import read_markdown_file, send_dingtalk_markdown
 from src.viewer.html_builder import build_today_html
 
 
@@ -186,6 +187,13 @@ def cmd_cleanup_noise(args: argparse.Namespace) -> None:
             repository.mark_ignored(args.db, row["id"])
             changed += 1
     print(f"Ignored noisy rows: {changed}")
+
+
+def cmd_push_dingtalk(args: argparse.Namespace) -> None:
+    """Send a generated markdown review to DingTalk."""
+    markdown = read_markdown_file(args.markdown)
+    result = send_dingtalk_markdown(markdown, title=args.title)
+    print(result)
 
 
 def cmd_daily(args: argparse.Namespace) -> None:
@@ -460,6 +468,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_cleanup = init_parser.add_parser("cleanup-noise", help="清理网页标题/导航等非真实题目噪声")
     add_db_argument(p_cleanup)
     p_cleanup.set_defaults(func=cmd_cleanup_noise)
+
+    p_dingtalk = init_parser.add_parser("push-dingtalk", help="把 Markdown 复习内容推送到钉钉机器人")
+    p_dingtalk.add_argument("--markdown", default=DEFAULT_TODAY_OUTPUT)
+    p_dingtalk.add_argument("--title", default="今日测开面试复习")
+    p_dingtalk.set_defaults(func=cmd_push_dingtalk, title="Daily Interview Review")
 
     p_daily = init_parser.add_parser("daily", help="生成或推送今日学习内容")
     p_daily.add_argument("--limit", type=int, default=3)
