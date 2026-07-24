@@ -19,3 +19,9 @@ def test_build_today_html_escapes_content():
     assert "今日测开面试复习" in html
     assert "&lt;script&gt;" in html
     assert "接口测试" in html
+
+
+def test_build_today_html_supports_weekly_mode():
+    html = build_today_html([], mode="weekly")
+
+    assert "周日精选复习" in html

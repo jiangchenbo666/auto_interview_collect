@@ -113,15 +113,29 @@ def run_daily_push(
     db_path: str | Path,
     limit: int = 3,
     dry_run: bool = False,
+    mark_reviewed: bool = False,
 ) -> str:
     """Build today's markdown and optionally send it to WeCom."""
     questions = repository.get_pending_for_daily(db_path, limit)
     markdown = build_daily_markdown(questions)
-    if not dry_run and questions:
-        send_markdown(markdown)
+    if questions and (not dry_run or mark_reviewed):
         for item in questions:
             repository.mark_pushed(db_path, item["id"])
+    if not dry_run and questions:
+        send_markdown(markdown)
     return markdown
+
+
+def is_sunday(now: datetime | None = None) -> bool:
+    """Return True when today is Sunday."""
+    return (now or datetime.now()).weekday() == 6
+
+
+def get_review_questions_for_today(db_path: str | Path, limit: int = 3) -> tuple[str, list[dict]]:
+    """Use weekly review on Sunday, otherwise normal daily questions."""
+    if is_sunday():
+        return "weekly", repository.get_weekly_review_questions(db_path, limit=max(limit, 7))
+    return "daily", repository.get_pending_for_daily(db_path, limit)
 
 
 def run_daily_loop(

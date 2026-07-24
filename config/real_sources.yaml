@@ -1,0 +1,21 @@
+sources:
+  - name: 小林coding 测试开发面试全攻略
+    type: public_url
+    enabled: true
+    url: https://www.xiaolincoding.com/interview/test_dev.html
+  - name: 小林coding 业务测试面试题
+    type: public_url
+    enabled: true
+    url: https://www.xiaolincoding.com/interview/business_testing.html
+  - name: 小林coding Python自动化测试面试题
+    type: public_url
+    enabled: true
+    url: https://www.xiaolincoding.com/interview/python_automation.html
+  - name: 小林coding Java自动化测试面试题
+    type: public_url
+    enabled: true
+    url: https://www.xiaolincoding.com/interview/java_automation.html
+  - name: 小林coding 性能测试面试题
+    type: public_url
+    enabled: true
+    url: https://www.xiaolincoding.com/interview/performance_testing.html

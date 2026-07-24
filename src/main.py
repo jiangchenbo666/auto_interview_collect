@@ -17,9 +17,10 @@ from pathlib import Path
 """
 
 from src.config_loader import get_db_path, get_obsidian_vault_path
+from src.crawlers.url_importer import fetch_url_text
 from src.knowledge.obsidian import retrieve_relevant_snippets
-from src.processors.extractor import extract_questions
-from src.scheduler.daily_job import rebuild_answers, process_pending_questions, run_daily_loop, run_daily_push
+from src.processors.extractor import extract_questions, is_noise_question
+from src.scheduler.daily_job import get_review_questions_for_today, rebuild_answers, process_pending_questions, run_daily_loop, run_daily_push
 from src.storage.db import init_db
 from src.storage import repository
 from src.viewer.html_builder import build_today_html
@@ -28,6 +29,8 @@ from src.viewer.html_builder import build_today_html
 DEFAULT_TODAY_OUTPUT = "data/exports/today.md"
 DEFAULT_TODAY_HTML_OUTPUT = "data/exports/today.html"
 DEFAULT_BANK_OUTPUT = "data/exports/questions.md"
+DEFAULT_SOURCES_CONFIG = "config/real_sources.yaml"
+DEFAULT_REAL_INTERVIEWS_DIR = "data/raw/real_interviews"
 
 
 def cmd_init(args: argparse.Namespace) -> None:
@@ -68,6 +71,59 @@ def cmd_import_folder(args: argparse.Namespace) -> None:
     print(f"Files scanned: {len(files)}")
     print(f"Extracted {total_extracted} questions.")
     print(f"Accepted {total_accepted}, skipped {total_skipped}.")
+
+
+def cmd_import_url(args: argparse.Namespace) -> None:
+    """Fetch one public URL and import extracted questions."""
+    init_db(args.db)
+    text = fetch_url_text(args.url)
+    questions = extract_questions(text)
+    result = repository.bulk_insert_questions(
+        args.db,
+        questions,
+        source_url=args.url,
+        source_type=args.source_type,
+    )
+    print(f"URL: {args.url}")
+    print(f"Extracted {len(questions)} questions.")
+    print(f"Accepted {result['accepted']}, skipped {result['skipped']}.")
+
+
+def cmd_refresh_sources(args: argparse.Namespace) -> None:
+    """Fetch configured public sources and import real questions."""
+    init_db(args.db)
+    sources = load_public_sources(args.config)
+    total_extracted = 0
+    total_accepted = 0
+    total_skipped = 0
+    failed: list[tuple[str, str]] = []
+
+    for source in sources:
+        name = source.get("name") or source["url"]
+        try:
+            text = fetch_url_text(source["url"])
+            questions = extract_questions(text)
+            result = repository.bulk_insert_questions(
+                args.db,
+                questions,
+                source_url=source["url"],
+                source_type=source.get("type", "public_url"),
+            )
+            total_extracted += len(questions)
+            total_accepted += result["accepted"]
+            total_skipped += result["skipped"]
+            print(f"[ok] {name}: extracted={len(questions)} accepted={result['accepted']} skipped={result['skipped']}")
+        except Exception as exc:  # noqa: BLE001
+            failed.append((name, str(exc)))
+            print(f"[failed] {name}: {exc}")
+
+    print(f"Sources enabled: {len(sources)}")
+    print(f"Extracted {total_extracted} questions.")
+    print(f"Accepted {total_accepted}, skipped {total_skipped}.")
+    if failed:
+        print("Failed sources:")
+        for name, reason in failed:
+            print(f"- {name}: {reason}")
 
 
 def import_one_file(db_path: str, path: Path, source_type: str = "real_interview") -> tuple[dict[str, int], int]:
@@ -120,16 +176,82 @@ def cmd_vault_status(args: argparse.Namespace) -> None:
             print(f"- {item.title} | score={item.score} | {item.path}")
 
 
+def cmd_cleanup_noise(args: argparse.Namespace) -> None:
+    """Mark obvious page titles/navigation headings as ignored."""
+    init_db(args.db)
+    rows = repository.export_questions(args.db)
+    changed = 0
+    for row in rows:
+        if row.get("status") != "ignored" and is_noise_question(row["question"]):
+            repository.mark_ignored(args.db, row["id"])
+            changed += 1
+    print(f"Ignored noisy rows: {changed}")
+
+
 def cmd_daily(args: argparse.Namespace) -> None:
     """Build today's review markdown; send it unless dry-run is enabled."""
     init_db(args.db)
-    markdown = run_daily_push(args.db, limit=args.limit, dry_run=args.dry_run)
+    mode, questions = get_review_questions_for_today(args.db, limit=args.limit)
+    markdown = build_daily_markdown_for_mode(mode, questions)
     if args.output:
         write_text_file(args.output, markdown)
         print(f"Saved daily review to {args.output}\n")
+    if args.html_output:
+        write_text_file(args.html_output, build_today_html(questions, mode=mode))
+        print(f"Saved HTML review to {args.html_output}\n")
+        if args.open:
+            open_in_browser(args.html_output)
     print(markdown)
+    if args.mark_reviewed:
+        repository.mark_questions_pushed(args.db, [item["id"] for item in questions])
+        print("\nMarked today's questions as reviewed.")
     if args.dry_run:
         print("\nDry run only. Nothing was sent.")
+
+
+def cmd_study(args: argparse.Namespace) -> None:
+    """Daily one-command workflow for real study."""
+    init_db(args.db)
+    if args.refresh_sources:
+        refresh_args = argparse.Namespace(
+            db=args.db,
+            config=args.sources_config,
+        )
+        cmd_refresh_sources(refresh_args)
+    if args.import_local:
+        local_root = Path(args.real_dir)
+        if local_root.exists():
+            import_args = argparse.Namespace(
+                db=args.db,
+                path=str(local_root),
+                source_type="real_interview",
+            )
+            cmd_import_folder(import_args)
+
+    changed = process_pending_questions(
+        args.db,
+        vault_path=args.vault,
+        limit=args.process_limit,
+        use_llm=args.use_llm,
+    )
+    mode, questions = get_review_questions_for_today(args.db, limit=args.limit)
+    markdown = build_daily_markdown_for_mode(mode, questions)
+    write_text_file(args.today_output, markdown)
+    write_text_file(args.html_output, build_today_html(questions, mode=mode))
+    write_text_file(args.bank_output, build_question_bank_markdown(repository.export_questions(args.db)))
+
+    if args.mark_reviewed:
+        repository.mark_questions_pushed(args.db, [item["id"] for item in questions])
+
+    print("Study page generated.")
+    print(f"Mode: {mode}")
+    print(f"Processed state transitions: {changed}")
+    print(f"Questions shown: {len(questions)}")
+    print(f"Today's HTML page: {args.html_output}")
+    print(f"Marked reviewed: {args.mark_reviewed}")
+    if args.open:
+        open_in_browser(args.html_output)
+        print("Opened today's HTML page in your browser.")
 
 
 def cmd_serve_daily(args: argparse.Namespace) -> None:
@@ -182,12 +304,12 @@ def cmd_demo(args: argparse.Namespace) -> None:
         limit=args.process_limit,
         use_llm=args.use_llm,
     )
-    daily_markdown = run_daily_push(args.db, limit=args.limit, dry_run=True)
-    today_questions = repository.get_pending_for_daily(args.db, args.limit)
+    mode, today_questions = get_review_questions_for_today(args.db, args.limit)
+    daily_markdown = build_daily_markdown_for_mode(mode, today_questions)
     rows = repository.export_questions(args.db)
 
     write_text_file(args.today_output, daily_markdown)
-    write_text_file(args.html_output, build_today_html(today_questions))
+    write_text_file(args.html_output, build_today_html(today_questions, mode=mode))
     write_text_file(args.bank_output, build_question_bank_markdown(rows))
 
     print("Demo completed.")
@@ -238,6 +360,46 @@ def build_question_bank_markdown(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def build_daily_markdown_for_mode(mode: str, questions: list[dict]) -> str:
+    """Build Markdown with a Sunday weekly-review heading when needed."""
+    from src.push.markdown_builder import build_daily_markdown
+
+    markdown = build_daily_markdown(questions)
+    if mode == "weekly":
+        return markdown.replace("# 今日测开面试复习", "# 周日精选复习", 1)
+    return markdown
+
+
+def load_public_sources(path: str | Path) -> list[dict[str, str]]:
+    """Load config/real_sources.yaml without adding a YAML dependency."""
+    config_path = Path(path)
+    if not config_path.exists():
+        return []
+    sources: list[dict[str, str]] = []
+    current: dict[str, str] | None = None
+    for raw_line in config_path.read_text(encoding="utf-8").splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#") or stripped == "sources:":
+            continue
+        if stripped.startswith("- "):
+            if current:
+                sources.append(current)
+            current = {}
+            stripped = stripped[2:].strip()
+            if ":" in stripped:
+                key, value = stripped.split(":", 1)
+                current[key.strip()] = value.strip()
+        elif current is not None and ":" in stripped:
+            key, value = stripped.split(":", 1)
+            current[key.strip()] = value.strip()
+    if current:
+        sources.append(current)
+    return [
+        source for source in sources
+        if source.get("enabled", "true").lower() == "true" and source.get("url")
+    ]
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Define all CLI commands and their arguments."""
     parser = argparse.ArgumentParser(description="测开面经收集与每日推送工具")
@@ -264,6 +426,17 @@ def build_parser() -> argparse.ArgumentParser:
     add_db_argument(p_import_folder)
     p_import_folder.set_defaults(func=cmd_import_folder)
 
+    p_import_url = init_parser.add_parser("import-url", help="导入一个公开 URL 中的真实面经/八股题")
+    p_import_url.add_argument("url")
+    p_import_url.add_argument("--source-type", default="public_url")
+    add_db_argument(p_import_url)
+    p_import_url.set_defaults(func=cmd_import_url)
+
+    p_refresh = init_parser.add_parser("refresh-sources", help="从 config/real_sources.yaml 刷新公开真实来源")
+    p_refresh.add_argument("--config", default=DEFAULT_SOURCES_CONFIG)
+    add_db_argument(p_refresh)
+    p_refresh.set_defaults(func=cmd_refresh_sources)
+
     p_process = init_parser.add_parser("process", help="分类并生成答案")
     p_process.add_argument("--limit", type=int, default=20)
     p_process.add_argument("--vault", default=get_obsidian_vault_path(), help="Obsidian vault 路径")
@@ -284,12 +457,36 @@ def build_parser() -> argparse.ArgumentParser:
     p_vault.add_argument("--limit", type=int, default=5)
     p_vault.set_defaults(func=cmd_vault_status)
 
+    p_cleanup = init_parser.add_parser("cleanup-noise", help="清理网页标题/导航等非真实题目噪声")
+    add_db_argument(p_cleanup)
+    p_cleanup.set_defaults(func=cmd_cleanup_noise)
+
     p_daily = init_parser.add_parser("daily", help="生成或推送今日学习内容")
     p_daily.add_argument("--limit", type=int, default=3)
     p_daily.add_argument("--dry-run", action="store_true")
     p_daily.add_argument("--output", help="把今日复习内容保存为 Markdown 文件")
+    p_daily.add_argument("--html-output", default=DEFAULT_TODAY_HTML_OUTPUT, help="保存 HTML 复习页面")
+    p_daily.add_argument("--open", action=argparse.BooleanOptionalAction, default=True, help="生成后打开浏览器")
+    p_daily.add_argument("--mark-reviewed", action="store_true", help="标记今天展示的题，避免明天重复")
     add_db_argument(p_daily)
     p_daily.set_defaults(func=cmd_daily)
+
+    p_study = init_parser.add_parser("study", help="每日学习：刷新真实来源、处理答案、生成页面、默认标记已复习")
+    p_study.add_argument("--limit", type=int, default=5)
+    p_study.add_argument("--process-limit", type=int, default=50)
+    p_study.add_argument("--sources-config", default=DEFAULT_SOURCES_CONFIG)
+    p_study.add_argument("--real-dir", default=DEFAULT_REAL_INTERVIEWS_DIR)
+    p_study.add_argument("--today-output", default=DEFAULT_TODAY_OUTPUT)
+    p_study.add_argument("--html-output", default=DEFAULT_TODAY_HTML_OUTPUT)
+    p_study.add_argument("--bank-output", default=DEFAULT_BANK_OUTPUT)
+    p_study.add_argument("--vault", default=get_obsidian_vault_path(), help="Obsidian vault 路径")
+    p_study.add_argument("--use-llm", action="store_true", help="使用 .env 中配置的 LLM API 生成答案")
+    p_study.add_argument("--refresh-sources", action=argparse.BooleanOptionalAction, default=True)
+    p_study.add_argument("--import-local", action=argparse.BooleanOptionalAction, default=True)
+    p_study.add_argument("--mark-reviewed", action=argparse.BooleanOptionalAction, default=True)
+    p_study.add_argument("--open", action=argparse.BooleanOptionalAction, default=True)
+    add_db_argument(p_study)
+    p_study.set_defaults(func=cmd_study)
 
     p_serve = init_parser.add_parser("serve-daily", help="常驻进程，每天定时处理并推送")
     p_serve.add_argument("--time", default="08:30", help="每日推送时间，格式 HH:MM")

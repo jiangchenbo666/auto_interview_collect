@@ -4,8 +4,10 @@ from html import escape
 from typing import Any
 
 
-def build_today_html(questions: list[dict[str, Any]]) -> str:
+def build_today_html(questions: list[dict[str, Any]], mode: str = "daily") -> str:
     """Render today's review questions as a standalone HTML page."""
+    page_title = "周日精选复习" if mode == "weekly" else "今日测开面试复习"
+    subtitle = "本页自动切换为周日精选，适合回看本周已经学过和高频题。" if mode == "weekly" else "建议每道题用 1 分钟复述，重点记关键词和项目落地点。"
     cards = "\n".join(build_question_card(index, item) for index, item in enumerate(questions, 1))
     if not cards:
         cards = """
@@ -20,7 +22,7 @@ def build_today_html(questions: list[dict[str, Any]]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>今日测开面试复习</title>
+  <title>{page_title}</title>
   <style>
     :root {{
       color-scheme: light;
@@ -136,8 +138,8 @@ def build_today_html(questions: list[dict[str, Any]]) -> str:
 </head>
 <body>
   <header>
-    <h1>今日测开面试复习</h1>
-    <p class="subtitle">建议每道题用 1 分钟复述，重点记关键词和项目落地点。</p>
+    <h1>{page_title}</h1>
+    <p class="subtitle">{subtitle}</p>
     <div class="toolbar">
       <span class="pill">今日 {len(questions)} 道题</span>
       <span class="pill">本地 HTML 预览</span>

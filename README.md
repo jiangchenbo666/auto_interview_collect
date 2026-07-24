@@ -62,6 +62,55 @@ python -m src.main demo --use-llm
 
 页面会显示每道题的来源路径。这样你能区分哪些题来自真实材料，哪些只是 demo。
 
+## 从公开网页刷新真实来源
+
+项目可以从 `config/real_sources.yaml` 中配置的公开 URL 拉取内容并抽题：
+
+```bash
+python -m src.main refresh-sources
+python -m src.main process --use-llm --limit 50
+python -m src.main daily --limit 5 --mark-reviewed
+```
+
+也可以临时导入一个 URL：
+
+```bash
+python -m src.main import-url "https://example.com/interview-note.html"
+```
+
+说明：
+
+- 只建议配置公开、无需登录、允许浏览的页面。
+- 牛客等需要登录或反爬的页面，建议手动保存为 `.md/.txt` 后导入。
+- 系统使用题目 hash 去重，同一道题不会重复入库。
+
+## 每日不重复和周日精选
+
+推荐日常只运行这一条：
+
+```bash
+python -m src.main study --use-llm
+```
+
+它会自动：
+
+- 刷新 `config/real_sources.yaml` 里的公开真实来源
+- 导入 `data/raw/real_interviews/` 下的本地真实面经
+- 处理新题目并结合 Obsidian/DeepSeek 生成答案
+- 生成 `data/exports/today.html`
+- 默认标记今日题目为已复习，降低明天重复概率
+- 周日自动切换成“周日精选复习”
+
+每日生成：
+
+```bash
+python -m src.main daily --limit 5 --mark-reviewed
+```
+
+`--mark-reviewed` 会把今天展示的题标记为已复习，后续普通每日题会优先选择未展示过的题。
+
+每周日运行同一个命令时，会自动切换成“周日精选复习”，优先展示本周/近期已复习题和高频题，用来回顾。
+
 ## 接入 Obsidian 知识库
 
 推荐把你的 Obsidian vault 放到：

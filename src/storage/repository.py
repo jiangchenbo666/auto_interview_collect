@@ -132,12 +132,71 @@ def get_pending_for_daily(db_path: str | Path, limit: int = 3) -> list[dict[str,
             """
             SELECT * FROM interview_questions
             WHERE status IN ('packaged', 'answered', 'classified')
-            ORDER BY COALESCE(last_pushed_at, ''), review_count ASC, id ASC
+            ORDER BY
+                CASE
+                    WHEN COALESCE(source_url, '') LIKE '%sample_questions.md%' THEN 1
+                    ELSE 0
+                END ASC,
+                COALESCE(last_pushed_at, ''),
+                review_count ASC,
+                id ASC
             LIMIT ?
             """,
             (limit,),
         ).fetchall()
     return [row_to_dict(row) for row in rows]
+
+
+def get_weekly_review_questions(db_path: str | Path, limit: int = 10) -> list[dict[str, Any]]:
+    """Pick recently reviewed questions for a Sunday weekly review."""
+    with connect(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT * FROM interview_questions
+            WHERE status = 'pushed'
+            ORDER BY last_pushed_at DESC, review_count DESC, id ASC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        if len(rows) < limit:
+            extra_rows = connection.execute(
+                """
+                SELECT * FROM interview_questions
+                WHERE status IN ('packaged', 'answered', 'classified')
+                ORDER BY
+                    CASE
+                        WHEN COALESCE(source_url, '') LIKE '%sample_questions.md%' THEN 1
+                        ELSE 0
+                    END ASC,
+                    review_count DESC,
+                    id ASC
+                LIMIT ?
+                """,
+                (limit - len(rows),),
+            ).fetchall()
+            rows = rows + extra_rows
+    return [row_to_dict(row) for row in rows]
+
+
+def mark_questions_pushed(db_path: str | Path, question_ids: list[int]) -> None:
+    """Mark multiple questions as displayed/reviewed."""
+    for question_id in question_ids:
+        mark_pushed(db_path, question_id)
+
+
+def mark_ignored(db_path: str | Path, question_id: int) -> None:
+    """Mark one noisy/non-question row as ignored."""
+    with connect(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE interview_questions
+            SET status = 'ignored',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (question_id,),
+        )
 
 
 def update_question_category(
