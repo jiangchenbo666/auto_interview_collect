@@ -205,7 +205,8 @@ def cmd_daily(args: argparse.Namespace) -> None:
         write_text_file(args.output, markdown)
         print(f"Saved daily review to {args.output}\n")
     if args.html_output:
-        write_text_file(args.html_output, build_today_html(questions, mode=mode))
+        html_questions = attach_obsidian_evidence(questions, args.vault)
+        write_text_file(args.html_output, build_today_html(html_questions, mode=mode))
         print(f"Saved HTML review to {args.html_output}\n")
         if args.open:
             open_in_browser(args.html_output)
@@ -245,7 +246,8 @@ def cmd_study(args: argparse.Namespace) -> None:
     mode, questions = get_review_questions_for_today(args.db, limit=args.limit)
     markdown = build_daily_markdown_for_mode(mode, questions)
     write_text_file(args.today_output, markdown)
-    write_text_file(args.html_output, build_today_html(questions, mode=mode))
+    html_questions = attach_obsidian_evidence(questions, args.vault)
+    write_text_file(args.html_output, build_today_html(html_questions, mode=mode))
     write_text_file(args.bank_output, build_question_bank_markdown(repository.export_questions(args.db)))
 
     if args.mark_reviewed:
@@ -317,7 +319,8 @@ def cmd_demo(args: argparse.Namespace) -> None:
     rows = repository.export_questions(args.db)
 
     write_text_file(args.today_output, daily_markdown)
-    write_text_file(args.html_output, build_today_html(today_questions, mode=mode))
+    html_questions = attach_obsidian_evidence(today_questions, args.vault)
+    write_text_file(args.html_output, build_today_html(html_questions, mode=mode))
     write_text_file(args.bank_output, build_question_bank_markdown(rows))
 
     print("Demo completed.")
@@ -343,6 +346,32 @@ def write_text_file(path: str | Path, text: str) -> None:
 def open_in_browser(path: str | Path) -> None:
     """Open a local file in the default browser."""
     webbrowser.open(Path(path).resolve().as_uri())
+
+
+def attach_obsidian_evidence(
+    questions: list[dict],
+    vault_path: str | Path,
+    limit: int = 3,
+) -> list[dict]:
+    """Attach matched Obsidian snippets for HTML audit display."""
+    enriched = []
+    for item in questions:
+        copied = dict(item)
+        copied["knowledge_evidence"] = [
+            {
+                "title": snippet.title,
+                "path": snippet.path,
+                "score": snippet.score,
+                "text": snippet.text,
+            }
+            for snippet in retrieve_relevant_snippets(
+                item.get("question") or "",
+                vault_path=vault_path,
+                limit=limit,
+            )
+        ]
+        enriched.append(copied)
+    return enriched
 
 
 def build_question_bank_markdown(rows: list[dict]) -> str:
@@ -481,6 +510,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_daily.add_argument("--html-output", default=DEFAULT_TODAY_HTML_OUTPUT, help="保存 HTML 复习页面")
     p_daily.add_argument("--open", action=argparse.BooleanOptionalAction, default=True, help="生成后打开浏览器")
     p_daily.add_argument("--mark-reviewed", action="store_true", help="标记今天展示的题，避免明天重复")
+    p_daily.add_argument("--vault", default=get_obsidian_vault_path(), help="Obsidian vault 路径")
     add_db_argument(p_daily)
     p_daily.set_defaults(func=cmd_daily)
 

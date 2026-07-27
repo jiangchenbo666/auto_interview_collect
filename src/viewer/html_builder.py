@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from html import escape
 from typing import Any
 
@@ -122,6 +123,31 @@ def build_today_html(questions: list[dict[str, Any]], mode: str = "daily") -> st
       margin: 0;
       color: #253041;
     }}
+    .evidence-list {{
+      display: grid;
+      gap: 10px;
+      margin-top: 8px;
+    }}
+    .evidence {{
+      border-left: 3px solid var(--accent);
+      background: #f8fafc;
+      padding: 10px 12px;
+      font-size: 13px;
+    }}
+    .evidence-title {{
+      margin: 0 0 4px;
+      font-weight: 700;
+    }}
+    .evidence-path {{
+      color: var(--muted);
+      margin: 0 0 6px;
+      word-break: break-all;
+    }}
+    .evidence-text {{
+      margin: 0;
+      white-space: pre-wrap;
+      color: #344054;
+    }}
     .empty {{
       background: var(--panel);
       border: 1px solid var(--line);
@@ -163,6 +189,7 @@ def build_question_card(index: int, item: dict[str, Any]) -> str:
     source = escape(str(item.get("source_url") or "未记录"))
     answer = escape(str(item.get("answer") or "待生成"))
     project_answer = escape(str(item.get("project_answer") or item.get("answer") or "待生成"))
+    evidence = build_evidence_block(item.get("knowledge_evidence") or [])
 
     return f"""
     <article class="card">
@@ -176,5 +203,46 @@ def build_question_card(index: int, item: dict[str, Any]) -> str:
       <p class="answer">{answer}</p>
       <div class="section-title">面试表达</div>
       <p class="answer">{project_answer}</p>
+      {evidence}
     </article>
     """
+
+
+def build_evidence_block(evidence_items: list[dict[str, Any]]) -> str:
+    """Render Obsidian retrieval evidence so users can audit answer grounding."""
+    if not evidence_items:
+        return """
+      <div class="section-title">Obsidian Evidence</div>
+      <p class="source">No matching Obsidian note snippets were found for this question.</p>
+        """
+
+    cards = []
+    for item in evidence_items:
+        title = escape(str(item.get("title") or "Untitled note"))
+        path = escape(str(item.get("path") or "unknown path"))
+        score = escape(str(item.get("score") or 0))
+        text = escape(compact_text(str(item.get("text") or "")))
+        cards.append(
+            f"""
+        <div class="evidence">
+          <p class="evidence-title">{title} · score {score}</p>
+          <p class="evidence-path">{path}</p>
+          <p class="evidence-text">{text}</p>
+        </div>
+            """
+        )
+
+    return f"""
+      <div class="section-title">Obsidian Evidence</div>
+      <div class="evidence-list">
+        {"".join(cards)}
+      </div>
+    """
+
+
+def compact_text(text: str, max_chars: int = 260) -> str:
+    """Keep evidence snippets short enough for a study card."""
+    compacted = re.sub(r"\s+", " ", text).strip()
+    if len(compacted) <= max_chars:
+        return compacted
+    return compacted[:max_chars].rstrip() + "..."
