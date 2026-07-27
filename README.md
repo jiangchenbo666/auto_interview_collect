@@ -12,6 +12,7 @@
 - 生成 `public/index.html`、`public/today.md`、`public/questions.md`
 - 部署到 GitHub Pages
 - 如果配置了钉钉机器人，会把 `today.md` 推送到手机
+- 如果配置了 `OBSIDIAN_PAT`，会自动拉取私有 Obsidian 仓库到 `data/obsidian`
 
 第一次使用需要在 GitHub 仓库配置：
 
@@ -19,7 +20,8 @@
 2. 新增 `DEEPSEEK_API_KEY`
 3. 可选新增 `DINGTALK_WEBHOOK_URL`
 4. 如果钉钉机器人开启了加签，再新增 `DINGTALK_SECRET`
-5. `Settings -> Pages -> Source` 选择 `GitHub Actions`
+5. 如果要让云端流水线读取你的私有 Obsidian 笔记，新增 `OBSIDIAN_PAT`
+6. `Settings -> Pages -> Source` 选择 `GitHub Actions`
 
 部署成功后，页面地址通常是：
 
@@ -28,6 +30,47 @@ https://jiangchenbo666.github.io/auto_interview_collect/
 ```
 
 注意：GitHub Actions 用 cache 保存 `data/interview.db`，能满足 MVP 的“每天不重复”需求，但它不是强数据库。后续如果要更稳，可以换成 Supabase、云端 SQLite 备份，或者把题库导出为 artifact。
+
+### 私有 Obsidian 仓库接入
+
+如果你的 Obsidian 已经通过 Git 自动同步到 `jiangchenbo666/Obsidian-Vault`，只需要再给本工具仓库一个只读访问令牌。
+
+推荐使用 fine-grained Personal Access Token：
+
+```text
+GitHub -> Settings -> Developer settings -> Personal access tokens -> Fine-grained tokens
+```
+
+权限建议：
+
+```text
+Repository access: Only select repositories
+Repository: jiangchenbo666/Obsidian-Vault
+Contents: Read-only
+```
+
+然后回到 `auto_interview_collect` 仓库：
+
+```text
+Settings -> Secrets and variables -> Actions -> New repository secret
+```
+
+新增：
+
+```text
+OBSIDIAN_PAT=你的 fine-grained token
+```
+
+下一次 `Daily Interview Pipeline` 运行时，会自动执行：
+
+```text
+Checkout tool repository
+Checkout Obsidian vault -> data/obsidian
+Report Obsidian vault status
+Build daily study page
+```
+
+这样 DeepSeek 生成答案时读到的就是你最新 push 到 GitHub 的 Obsidian 笔记。
 
 测开/安全测试面经收集、自动整理和每日企业微信推送工具。
 

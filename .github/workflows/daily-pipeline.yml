@@ -32,10 +32,24 @@ jobs:
       DEEPSEEK_MODEL: deepseek-v4-flash
       DINGTALK_WEBHOOK_URL: ${{ secrets.DINGTALK_WEBHOOK_URL }}
       DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
+      OBSIDIAN_REPOSITORY: jiangchenbo666/Obsidian-Vault
+      OBSIDIAN_PAT: ${{ secrets.OBSIDIAN_PAT }}
 
     steps:
-      - name: Checkout
+      - name: Checkout tool repository
         uses: actions/checkout@v4
+
+      - name: Checkout Obsidian vault
+        if: ${{ env.OBSIDIAN_PAT != '' }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.OBSIDIAN_REPOSITORY }}
+          token: ${{ env.OBSIDIAN_PAT }}
+          path: data/obsidian
+
+      - name: Skip Obsidian vault checkout
+        if: ${{ env.OBSIDIAN_PAT == '' }}
+        run: echo "OBSIDIAN_PAT is empty; continuing without cloud Obsidian notes."
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -57,6 +71,9 @@ jobs:
       - name: Run tests
         run: python -m pytest
 
+      - name: Report Obsidian vault status
+        run: python -m src.main vault-status --limit 3
+
       - name: Build daily study page
         shell: bash
         run: |
@@ -67,7 +84,7 @@ jobs:
             echo "DEEPSEEK_API_KEY is empty; falling back to local template answers."
             LLM_FLAG=""
           fi
-          python -m src.main study $LLM_FLAG --no-open --html-output public/index.html --today-output public/today.md --bank-output public/questions.md
+          python -m src.main study $LLM_FLAG --no-open --process-limit 10 --html-output public/index.html --today-output public/today.md --bank-output public/questions.md
           touch public/.nojekyll
 
       - name: Push DingTalk notification
