@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from argparse import Namespace
 
-from src.main import cmd_study
+from src.main import cmd_study, prepend_page_link
 from src.storage.db import init_db
 from src.storage import repository
 
@@ -40,3 +40,10 @@ def test_study_command_generates_outputs_without_refresh(tmp_path):
     assert html_output.exists()
     pushed = repository.get_questions_by_status(db_path, "pushed", limit=5)
     assert len(pushed) == 1
+
+
+def test_prepend_page_link_adds_pages_entry():
+    markdown = prepend_page_link("# 今日复习", "https://example.github.io/project/")
+
+    assert markdown.startswith("完整复习页：[https://example.github.io/project/]")
+    assert "# 今日复习" in markdown

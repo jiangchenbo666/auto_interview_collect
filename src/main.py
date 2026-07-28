@@ -192,6 +192,8 @@ def cmd_cleanup_noise(args: argparse.Namespace) -> None:
 def cmd_push_dingtalk(args: argparse.Namespace) -> None:
     """Send a generated markdown review to DingTalk."""
     markdown = read_markdown_file(args.markdown)
+    if args.page_url:
+        markdown = prepend_page_link(markdown, args.page_url)
     result = send_dingtalk_markdown(markdown, title=args.title)
     print(result)
 
@@ -350,6 +352,14 @@ def open_in_browser(path: str | Path) -> None:
     webbrowser.open(Path(path).resolve().as_uri())
 
 
+def prepend_page_link(markdown: str, page_url: str) -> str:
+    """Add the GitHub Pages study entry at the top of a DingTalk message."""
+    clean_url = page_url.strip()
+    if not clean_url:
+        return markdown
+    return f"完整复习页：[{clean_url}]({clean_url})\n\n{markdown}"
+
+
 def attach_obsidian_evidence(
     questions: list[dict],
     vault_path: str | Path,
@@ -503,6 +513,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_dingtalk = init_parser.add_parser("push-dingtalk", help="把 Markdown 复习内容推送到钉钉机器人")
     p_dingtalk.add_argument("--markdown", default=DEFAULT_TODAY_OUTPUT)
     p_dingtalk.add_argument("--title", default="今日测开面试复习")
+    p_dingtalk.add_argument("--page-url", help="可选：在钉钉消息开头附加 GitHub Pages 学习页链接")
     p_dingtalk.set_defaults(func=cmd_push_dingtalk, title="Daily Interview Review")
 
     p_daily = init_parser.add_parser("daily", help="生成或推送今日学习内容")

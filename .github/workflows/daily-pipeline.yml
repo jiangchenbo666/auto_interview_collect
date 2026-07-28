@@ -36,6 +36,7 @@ jobs:
       DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
       OBSIDIAN_REPOSITORY: jiangchenbo666/Obsidian-Vault
       OBSIDIAN_PAT: ${{ secrets.OBSIDIAN_PAT }}
+      STUDY_PAGE_URL: https://jiangchenbo666.github.io/auto_interview_collect/
 
     steps:
       - name: Checkout tool repository
@@ -99,7 +100,7 @@ jobs:
         shell: bash
         run: |
           if [ -n "$DINGTALK_WEBHOOK_URL" ]; then
-            python -m src.main push-dingtalk --markdown public/today.md --title "Daily Interview Review"
+            python -m src.main push-dingtalk --markdown public/today.md --title "Daily Interview Review" --page-url "$STUDY_PAGE_URL"
           else
             echo "DINGTALK_WEBHOOK_URL is empty; skip DingTalk notification."
           fi
