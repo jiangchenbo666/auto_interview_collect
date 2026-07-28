@@ -3,8 +3,10 @@ name: Daily Interview Pipeline
 on:
   workflow_dispatch:
   schedule:
-    # 00:00 UTC is 08:00 in Asia/Shanghai.
-    - cron: "0 0 * * *"
+    # 23:17 UTC is 07:17 in Asia/Shanghai.
+    # GitHub scheduled workflows can be delayed, especially near the top
+    # of the hour, so this runs earlier to land around the 08:00 study slot.
+    - cron: "17 23 * * *"
 
 permissions:
   contents: read
@@ -61,10 +63,10 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Restore interview database cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: data/interview.db
-          key: interview-db-${{ github.run_id }}
+          key: interview-db-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             interview-db-
 
@@ -86,6 +88,12 @@ jobs:
           fi
           python -m src.main study $LLM_FLAG --no-open --process-limit 10 --html-output public/index.html --today-output public/today.md --bank-output public/questions.md
           touch public/.nojekyll
+
+      - name: Save interview database cache
+        uses: actions/cache/save@v4
+        with:
+          path: data/interview.db
+          key: interview-db-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Push DingTalk notification
         shell: bash

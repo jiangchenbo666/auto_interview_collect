@@ -257,6 +257,8 @@ def cmd_study(args: argparse.Namespace) -> None:
     print(f"Mode: {mode}")
     print(f"Processed state transitions: {changed}")
     print(f"Questions shown: {len(questions)}")
+    for item in questions:
+        print(f"- [{item['id']}] {item['question']}")
     print(f"Today's HTML page: {args.html_output}")
     print(f"Marked reviewed: {args.mark_reviewed}")
     if args.open:
