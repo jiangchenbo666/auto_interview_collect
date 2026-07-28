@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 from src.llm.deepseek_client import generate_interview_answer_with_deepseek
+from src.llm.kimi_client import generate_interview_answer_with_kimi
 from src.llm.openai_client import generate_interview_answer_with_openai
 from src.push.wecom_bot import load_env_file
 
@@ -13,6 +14,8 @@ def has_llm_config(provider: str | None = None) -> bool:
     selected = (provider or os.getenv("LLM_PROVIDER", "deepseek")).lower()
     if selected == "deepseek":
         return bool(os.getenv("DEEPSEEK_API_KEY"))
+    if selected in {"kimi", "moonshot"}:
+        return bool(os.getenv("KIMI_API_KEY") or os.getenv("MOONSHOT_API_KEY"))
     if selected == "openai":
         return bool(os.getenv("OPENAI_API_KEY"))
     return False
@@ -30,6 +33,13 @@ def generate_interview_answer_with_llm(
     selected = (provider or os.getenv("LLM_PROVIDER", "deepseek")).lower()
     if selected == "deepseek":
         return generate_interview_answer_with_deepseek(
+            question,
+            category,
+            knowledge_context,
+            project_profile,
+        )
+    if selected in {"kimi", "moonshot"}:
+        return generate_interview_answer_with_kimi(
             question,
             category,
             knowledge_context,

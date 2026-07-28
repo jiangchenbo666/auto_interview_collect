@@ -28,10 +28,14 @@ jobs:
     env:
       INTERVIEW_DB_PATH: data/interview.db
       OBSIDIAN_VAULT_PATH: data/obsidian
-      LLM_PROVIDER: deepseek
+      LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'kimi' }}
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
       DEEPSEEK_BASE_URL: https://api.deepseek.com
       DEEPSEEK_MODEL: deepseek-v4-pro
+      KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+      MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+      KIMI_BASE_URL: https://api.moonshot.cn/v1
+      KIMI_MODEL: kimi-k2.6
       DINGTALK_WEBHOOK_URL: ${{ secrets.DINGTALK_WEBHOOK_URL }}
       DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
       OBSIDIAN_REPOSITORY: jiangchenbo666/Obsidian-Vault
@@ -81,12 +85,28 @@ jobs:
         shell: bash
         run: |
           mkdir -p public
-          if [ -n "$DEEPSEEK_API_KEY" ]; then
-            LLM_FLAG="--use-llm"
-          else
-            echo "DEEPSEEK_API_KEY is empty; falling back to local template answers."
-            LLM_FLAG=""
-          fi
+          case "${LLM_PROVIDER:-kimi}" in
+            kimi|moonshot)
+              if [ -n "$KIMI_API_KEY" ] || [ -n "$MOONSHOT_API_KEY" ]; then
+                LLM_FLAG="--use-llm"
+              else
+                echo "KIMI_API_KEY/MOONSHOT_API_KEY is empty; falling back to local template answers."
+                LLM_FLAG=""
+              fi
+              ;;
+            deepseek)
+              if [ -n "$DEEPSEEK_API_KEY" ]; then
+                LLM_FLAG="--use-llm"
+              else
+                echo "DEEPSEEK_API_KEY is empty; falling back to local template answers."
+                LLM_FLAG=""
+              fi
+              ;;
+            *)
+              echo "Unsupported LLM_PROVIDER=$LLM_PROVIDER; falling back to local template answers."
+              LLM_FLAG=""
+              ;;
+          esac
           python -m src.main study $LLM_FLAG --no-open --process-limit 10 --html-output public/index.html --today-output public/today.md --bank-output public/questions.md
           touch public/.nojekyll
 

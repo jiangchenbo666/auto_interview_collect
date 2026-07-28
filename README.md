@@ -17,11 +17,12 @@
 第一次使用需要在 GitHub 仓库配置：
 
 1. `Settings -> Secrets and variables -> Actions -> New repository secret`
-2. 新增 `DEEPSEEK_API_KEY`
-3. 可选新增 `DINGTALK_WEBHOOK_URL`
-4. 如果钉钉机器人开启了加签，再新增 `DINGTALK_SECRET`
-5. 如果要让云端流水线读取你的私有 Obsidian 笔记，新增 `OBSIDIAN_PAT`
-6. `Settings -> Pages -> Source` 选择 `GitHub Actions`
+2. 新增 `KIMI_API_KEY`，当前默认使用 Kimi
+3. 如果后续要切回 DeepSeek，再新增 `DEEPSEEK_API_KEY`
+4. 可选新增 `DINGTALK_WEBHOOK_URL`
+5. 如果钉钉机器人开启了加签，再新增 `DINGTALK_SECRET`
+6. 如果要让云端流水线读取你的私有 Obsidian 笔记，新增 `OBSIDIAN_PAT`
+7. `Settings -> Pages -> Source` 选择 `GitHub Actions`
 
 部署成功后，页面地址通常是：
 
@@ -220,14 +221,20 @@ python -m src.main demo
 
 注意：`data/obsidian/` 已经被 `.gitignore` 忽略，不会把你的私人笔记提交到 GitHub。
 
-## 使用 DeepSeek API 生成答案
+## 使用 Kimi 或 DeepSeek API 生成答案
 
 默认情况下，项目使用本地模板 + Obsidian 检索片段，不需要 API key。
 
-如果你想让所有答案调用 DeepSeek 模型生成：
+当前 GitHub Actions 默认使用 Kimi。你需要在 GitHub Secrets 或本地 `.env` 里配置：
 
-1. 复制 `.env.example` 为 `.env`
-2. 填入：
+```text
+LLM_PROVIDER=kimi
+KIMI_API_KEY=你的 Kimi API key
+KIMI_BASE_URL=https://api.moonshot.cn/v1
+KIMI_MODEL=kimi-k2.6
+```
+
+如果 Kimi 额度用完，切回 DeepSeek：
 
 ```text
 LLM_PROVIDER=deepseek
