@@ -233,7 +233,7 @@ python -m src.main demo
 LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY=你的 DeepSeek API key
 DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-v4-flash
+DEEPSEEK_MODEL=deepseek-v4-pro
 ```
 
 然后运行：

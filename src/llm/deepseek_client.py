@@ -7,7 +7,7 @@ from src.push.wecom_bot import load_env_file
 
 
 DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
+DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-pro"
 
 
 def generate_interview_answer_with_deepseek(
