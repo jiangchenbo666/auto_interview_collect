@@ -85,6 +85,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p public
+          echo "LLM_PROVIDER=${LLM_PROVIDER:-kimi}"
+          echo "KIMI_MODEL=$KIMI_MODEL"
+          echo "DEEPSEEK_MODEL=$DEEPSEEK_MODEL"
           case "${LLM_PROVIDER:-kimi}" in
             kimi|moonshot)
               if [ -n "$KIMI_API_KEY" ] || [ -n "$MOONSHOT_API_KEY" ]; then

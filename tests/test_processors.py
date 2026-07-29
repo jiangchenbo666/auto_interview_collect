@@ -44,6 +44,13 @@ def test_classify_security_and_interface():
     assert classify_question("接口测试用例应该如何设计？")[0] == "接口测试"
 
 
+def test_classify_foundation_topics():
+    assert classify_question("MySQL 索引为什么常用 B+ 树？")[0] == "数据库"
+    assert classify_question("Linux 用户态和内核态有什么区别？")[0] == "操作系统"
+    assert classify_question("TCP 三次握手为什么不是两次？")[0] == "计算机网络"
+    assert classify_question("Docker Namespace 和 Cgroups 分别解决什么问题？")[0] == "Docker 与云原生"
+
+
 def test_generate_answer_contains_question():
     answer = generate_standard_answer("接口测试用例应该如何设计？", "接口测试")
     assert "接口测试" in answer
