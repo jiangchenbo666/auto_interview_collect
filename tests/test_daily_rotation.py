@@ -45,6 +45,29 @@ def test_daily_prefers_real_sources_over_sample(tmp_path):
     assert rows[0]["id"] == real_id
 
 
+def test_daily_prefers_foundation_topics_over_older_real_sources(tmp_path):
+    db_path = tmp_path / "interview.db"
+    init_db(db_path)
+    old_real_id = repository.insert_question(
+        db_path,
+        "冒烟测试和回归测试有什么区别？",
+        source_url="https://example.com/real",
+        source_type="public_url",
+    )
+    foundation_id = repository.insert_question(
+        db_path,
+        "MySQL 索引为什么常用 B+ 树？",
+        source_url="data/raw/real_interviews/foundation_bagu.md",
+        source_type="real_interview",
+    )
+    repository.update_question_category(db_path, old_real_id, "测试基础")
+    repository.update_question_category(db_path, foundation_id, "数据库")
+
+    rows = repository.get_pending_for_daily(db_path, limit=1)
+
+    assert rows[0]["id"] == foundation_id
+
+
 def test_is_sunday():
     assert is_sunday(datetime(2026, 7, 26)) is True
     assert is_sunday(datetime(2026, 7, 24)) is False

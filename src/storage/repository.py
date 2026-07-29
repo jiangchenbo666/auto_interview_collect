@@ -123,9 +123,9 @@ def get_pending_for_daily(db_path: str | Path, limit: int = 3) -> list[dict[str,
     """Pick questions ready for daily review.
 
     Priority:
-    1. Never pushed before
-    2. Lower review_count
-    3. Older id
+    1. Foundation topics added for the current study plan
+    2. Real sources before bundled samples
+    3. Never pushed before, then lower review_count, then older id
     """
     with connect(db_path) as connection:
         rows = connection.execute(
@@ -134,8 +134,9 @@ def get_pending_for_daily(db_path: str | Path, limit: int = 3) -> list[dict[str,
             WHERE status IN ('packaged', 'answered', 'classified')
             ORDER BY
                 CASE
-                    WHEN COALESCE(source_url, '') LIKE '%sample_questions.md%' THEN 1
-                    ELSE 0
+                    WHEN COALESCE(source_url, '') LIKE '%foundation_bagu.md%' THEN 0
+                    WHEN COALESCE(source_url, '') LIKE '%sample_questions.md%' THEN 2
+                    ELSE 1
                 END ASC,
                 COALESCE(last_pushed_at, ''),
                 review_count ASC,
@@ -166,8 +167,9 @@ def get_weekly_review_questions(db_path: str | Path, limit: int = 10) -> list[di
                 WHERE status IN ('packaged', 'answered', 'classified')
                 ORDER BY
                     CASE
-                        WHEN COALESCE(source_url, '') LIKE '%sample_questions.md%' THEN 1
-                        ELSE 0
+                        WHEN COALESCE(source_url, '') LIKE '%foundation_bagu.md%' THEN 0
+                        WHEN COALESCE(source_url, '') LIKE '%sample_questions.md%' THEN 2
+                        ELSE 1
                     END ASC,
                     review_count DESC,
                     id ASC
