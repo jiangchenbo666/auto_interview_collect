@@ -43,3 +43,23 @@ def test_normalize_inbox_files_skips_existing_output(tmp_path):
     assert first.written == 1
     assert second.written == 0
     assert second.skipped == 1
+
+
+def test_normalize_inbox_files_registers_image_without_vision(tmp_path):
+    inbox = tmp_path / "inbox"
+    output = tmp_path / "normalized"
+    inbox.mkdir()
+    screenshot = inbox / "nowcoder-api.png"
+    screenshot.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+
+    result = normalize_inbox_files([inbox], output)
+    files = list(output.glob("*.md"))
+
+    assert result.scanned == 1
+    assert result.written == 1
+    assert result.images_pending == 1
+    assert result.images_parsed == 0
+    assert len(files) == 1
+    content = files[0].read_text(encoding="utf-8")
+    assert "截图待解析" in content
+    assert "nowcoder-api.png" in content

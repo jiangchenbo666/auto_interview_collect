@@ -126,13 +126,13 @@ data/raw/real_interviews/github-测试开发八股.md
 data/raw/real_interviews/blog-安全测试面试题.txt
 ```
 
-牛客资料推荐放到：
+牛客资料推荐放到你的私有 Obsidian 仓库：
 
 ```text
-Obsidian-Vault/面经资料/待整理/
+Obsidian-Vault/面经资料-未整理/
 ```
 
-保存成 `.txt` 或 `.md` 都可以。Obsidian Git 会自动上传到私有仓库，GitHub Actions 会整理成规范 Markdown 并导入题库。详细格式看 [docs/nowcoder_import_guide.md](docs/nowcoder_import_guide.md)。
+保存成 `.txt`、`.md` 或截图都可以。Obsidian Git 会自动上传到私有仓库，GitHub Actions 会整理成规范 Markdown 并导入题库；截图会在 Kimi key 可用时尝试视觉解析。旧目录 `Obsidian-Vault/面经资料/待整理/` 仍然兼容。详细格式看 [docs/nowcoder_import_guide.md](docs/nowcoder_import_guide.md)。
 
 然后执行：
 
@@ -178,7 +178,7 @@ python -m src.main study --use-llm
 
 - 刷新 `config/real_sources.yaml` 里的公开真实来源
 - 导入 `data/raw/real_interviews/` 下的本地真实面经
-- 处理新题目并结合 Obsidian/DeepSeek 生成答案
+- 处理新题目并结合 Obsidian/Kimi 生成答案
 - 生成 `data/exports/today.html`
 - 默认标记今日题目为已复习，降低明天重复概率
 - 周日自动切换成“周日精选复习”

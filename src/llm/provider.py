@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from src.llm.deepseek_client import generate_interview_answer_with_deepseek
-from src.llm.kimi_client import generate_interview_answer_with_kimi
+from src.llm.kimi_client import (
+    extract_interview_material_from_image_with_kimi,
+    generate_interview_answer_with_kimi,
+)
 from src.llm.openai_client import generate_interview_answer_with_openai
 from src.push.wecom_bot import load_env_file
 
@@ -53,3 +57,15 @@ def generate_interview_answer_with_llm(
             project_profile,
         )
     raise ValueError(f"Unsupported LLM_PROVIDER: {selected}")
+
+
+def extract_interview_material_from_image(
+    image_path: str | Path,
+    provider: str | None = None,
+) -> str:
+    """Use the configured multimodal provider to OCR and structure screenshots."""
+    load_env_file()
+    selected = (provider or os.getenv("LLM_PROVIDER", "kimi")).lower()
+    if selected in {"kimi", "moonshot"}:
+        return extract_interview_material_from_image_with_kimi(image_path)
+    raise ValueError(f"Provider does not support image extraction yet: {selected}")

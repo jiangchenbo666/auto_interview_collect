@@ -35,6 +35,11 @@ DEFAULT_SOURCES_CONFIG = "config/real_sources.yaml"
 DEFAULT_REAL_INTERVIEWS_DIR = "data/raw/real_interviews"
 DEFAULT_INBOX_DIR = "data/raw/inbox"
 DEFAULT_OBSIDIAN_INBOX_DIR = "data/obsidian/面经资料/待整理"
+DEFAULT_OBSIDIAN_UNSORTED_INBOX_DIR = "data/obsidian/面经资料-未整理"
+DEFAULT_OBSIDIAN_INBOX_DIRS = [
+    DEFAULT_OBSIDIAN_INBOX_DIR,
+    DEFAULT_OBSIDIAN_UNSORTED_INBOX_DIR,
+]
 DEFAULT_NORMALIZED_INBOX_DIR = "data/raw/real_interviews/nowcoder"
 
 
@@ -84,10 +89,15 @@ def cmd_normalize_inbox(args: argparse.Namespace) -> None:
         [Path(path) for path in args.inbox],
         args.output,
         overwrite=args.overwrite,
+        use_vision=args.use_vision,
     )
     print(f"Inbox files scanned: {result.scanned}")
     print(f"Normalized markdown written: {result.written}")
     print(f"Skipped: {result.skipped}")
+    print(f"Images parsed: {result.images_parsed}")
+    print(f"Images pending: {result.images_pending}")
+    for error in result.errors:
+        print(f"[image warning] {error}")
     print(f"Output folder: {result.output_dir}")
 
 
@@ -247,15 +257,22 @@ def cmd_study(args: argparse.Namespace) -> None:
         )
         cmd_refresh_sources(refresh_args)
     if args.normalize_inbox:
+        use_vision = getattr(args, "vision_inbox", None)
+        if use_vision is None:
+            use_vision = args.use_llm
         result = normalize_inbox_files(
-            [args.inbox_dir, args.obsidian_inbox_dir],
+            [args.inbox_dir, *as_path_list(args.obsidian_inbox_dir)],
             args.normalized_inbox_dir,
             overwrite=args.overwrite_inbox,
+            use_vision=use_vision,
         )
         print(
             "Inbox normalized: "
-            f"scanned={result.scanned} written={result.written} skipped={result.skipped}"
+            f"scanned={result.scanned} written={result.written} skipped={result.skipped} "
+            f"images_parsed={result.images_parsed} images_pending={result.images_pending}"
         )
+        for error in result.errors:
+            print(f"[image warning] {error}")
     if args.import_local:
         local_root = Path(args.real_dir)
         if local_root.exists():
@@ -384,6 +401,13 @@ def write_text_file(path: str | Path, text: str) -> None:
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(text, encoding="utf-8")
+
+
+def as_path_list(value: str | Path | list[str | Path] | tuple[str | Path, ...]) -> list[str | Path]:
+    """Normalize argparse single/repeated path values into a list."""
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    return [value]
 
 
 def open_in_browser(path: str | Path) -> None:
@@ -538,11 +562,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_normalize.add_argument(
         "--inbox",
         action="append",
-        default=[DEFAULT_INBOX_DIR, DEFAULT_OBSIDIAN_INBOX_DIR],
+        default=[DEFAULT_INBOX_DIR, *DEFAULT_OBSIDIAN_INBOX_DIRS],
         help="待整理资料目录，可重复传入",
     )
     p_normalize.add_argument("--output", default=DEFAULT_NORMALIZED_INBOX_DIR)
     p_normalize.add_argument("--overwrite", action="store_true")
+    p_normalize.add_argument("--use-vision", action="store_true", help="使用 Kimi 视觉模型解析截图")
     p_normalize.set_defaults(func=cmd_normalize_inbox)
 
     p_import_url = init_parser.add_parser("import-url", help="导入一个公开 URL 中的真实面经/八股题")
@@ -605,9 +630,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_study.add_argument("--real-dir", default=DEFAULT_REAL_INTERVIEWS_DIR)
     p_study.add_argument("--normalize-inbox", action=argparse.BooleanOptionalAction, default=True)
     p_study.add_argument("--inbox-dir", default=DEFAULT_INBOX_DIR)
-    p_study.add_argument("--obsidian-inbox-dir", default=DEFAULT_OBSIDIAN_INBOX_DIR)
+    p_study.add_argument(
+        "--obsidian-inbox-dir",
+        action="append",
+        default=list(DEFAULT_OBSIDIAN_INBOX_DIRS),
+        help="Obsidian 待整理资料目录，可重复传入",
+    )
     p_study.add_argument("--normalized-inbox-dir", default=DEFAULT_NORMALIZED_INBOX_DIR)
     p_study.add_argument("--overwrite-inbox", action="store_true")
+    p_study.add_argument(
+        "--vision-inbox",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="是否尝试用多模态模型解析 inbox 截图；默认跟随 --use-llm",
+    )
     p_study.add_argument("--today-output", default=DEFAULT_TODAY_OUTPUT)
     p_study.add_argument("--html-output", default=DEFAULT_TODAY_HTML_OUTPUT)
     p_study.add_argument("--bank-output", default=DEFAULT_BANK_OUTPUT)

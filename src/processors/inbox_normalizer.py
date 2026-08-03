@@ -9,7 +9,9 @@ from pathlib import Path
 from src.processors.extractor import extract_questions
 
 
-SUPPORTED_INBOX_SUFFIXES = {".md", ".txt"}
+SUPPORTED_TEXT_SUFFIXES = {".md", ".txt"}
+SUPPORTED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+SUPPORTED_INBOX_SUFFIXES = SUPPORTED_TEXT_SUFFIXES | SUPPORTED_IMAGE_SUFFIXES
 
 
 @dataclass(frozen=True)
@@ -20,32 +22,56 @@ class InboxNormalizeResult:
     written: int
     skipped: int
     output_dir: str
+    images_parsed: int = 0
+    images_pending: int = 0
+    errors: tuple[str, ...] = ()
 
 
 def normalize_inbox_files(
     inbox_dirs: list[str | Path],
     output_dir: str | Path,
     overwrite: bool = False,
+    use_vision: bool = False,
 ) -> InboxNormalizeResult:
-    """Convert pasted raw interview notes into normalized markdown files."""
+    """Convert pasted notes/screenshots into normalized markdown files."""
     output_root = Path(output_dir)
     output_root.mkdir(parents=True, exist_ok=True)
 
     scanned = 0
     written = 0
     skipped = 0
+    images_parsed = 0
+    images_pending = 0
+    errors: list[str] = []
     for inbox_dir in inbox_dirs:
         root = Path(inbox_dir)
         if not root.exists():
             continue
         for source_path in iter_inbox_files(root):
             scanned += 1
-            text = read_text(source_path)
-            if not text.strip():
-                skipped += 1
-                continue
-            normalized = build_normalized_markdown(source_path, text)
-            output_path = output_root / normalized_filename(source_path, text)
+            if source_path.suffix.lower() in SUPPORTED_TEXT_SUFFIXES:
+                text = read_text(source_path)
+                if not text.strip():
+                    skipped += 1
+                    continue
+                output_path = output_root / normalized_filename(source_path, text)
+                if output_path.exists() and not overwrite:
+                    skipped += 1
+                    continue
+                normalized = build_normalized_markdown(source_path, text)
+            else:
+                digest = file_digest(source_path)
+                output_path = output_root / normalized_filename(source_path, digest)
+                if output_path.exists() and not overwrite:
+                    skipped += 1
+                    continue
+                normalized, parsed, error = build_image_markdown(source_path, use_vision=use_vision)
+                if parsed:
+                    images_parsed += 1
+                else:
+                    images_pending += 1
+                if error:
+                    errors.append(f"{source_path}: {error}")
             if output_path.exists() and not overwrite:
                 skipped += 1
                 continue
@@ -57,6 +83,9 @@ def normalize_inbox_files(
         written=written,
         skipped=skipped,
         output_dir=str(output_root),
+        images_parsed=images_parsed,
+        images_pending=images_pending,
+        errors=tuple(errors),
     )
 
 
@@ -91,11 +120,58 @@ def build_normalized_markdown(source_path: Path, text: str) -> str:
     return "\n".join(lines)
 
 
+def build_image_markdown(source_path: Path, use_vision: bool = False) -> tuple[str, bool, str | None]:
+    """Convert one screenshot into markdown, using Kimi vision when enabled."""
+    if not use_vision:
+        return build_pending_image_markdown(source_path, "未启用视觉模型，本次只登记截图。"), False, None
+
+    try:
+        from src.llm.provider import extract_interview_material_from_image
+
+        extracted = extract_interview_material_from_image(source_path).strip()
+    except Exception as exc:  # noqa: BLE001
+        reason = str(exc)
+        return build_pending_image_markdown(source_path, f"视觉解析失败：{reason}"), False, reason
+
+    if not extracted:
+        return build_pending_image_markdown(source_path, "视觉模型未返回可用文本。"), False, "empty vision response"
+
+    markdown = build_normalized_markdown(source_path, extracted)
+    return markdown, True, None
+
+
+def build_pending_image_markdown(source_path: Path, reason: str) -> str:
+    """Create a source card for screenshots that still need OCR/vision parsing."""
+    lines = [
+        f"# 截图待解析 - {source_path.stem}",
+        "",
+        f"- 原始文件：{source_path}",
+        f"- 整理时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        "- 资料类型：截图",
+        f"- 处理状态：{reason}",
+        "",
+        "## 抽取题目",
+        "",
+        "- 暂未自动识别到明确题目；启用 Kimi 视觉模型后会在流水线中解析。",
+        "",
+        "## 原始材料",
+        "",
+        f"图片文件：{source_path}",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def normalized_filename(source_path: Path, text: str) -> str:
     """Create a stable output filename to avoid repeated OCR/import cost."""
     digest = hashlib.sha1(text.encode("utf-8", errors="ignore")).hexdigest()[:10]
     stem = safe_stem(source_path.stem)
     return f"{stem}-{digest}.md"
+
+
+def file_digest(path: Path) -> str:
+    """Return a stable content hash for binary inbox files."""
+    return hashlib.sha1(path.read_bytes()).hexdigest()[:10]
 
 
 def safe_stem(stem: str) -> str:
