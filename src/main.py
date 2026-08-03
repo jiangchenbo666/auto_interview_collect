@@ -20,7 +20,7 @@ from src.config_loader import get_db_path, get_obsidian_vault_path
 from src.crawlers.url_importer import fetch_url_text
 from src.knowledge.obsidian import retrieve_relevant_snippets
 from src.processors.extractor import extract_questions, is_noise_question
-from src.processors.inbox_normalizer import normalize_inbox_files
+from src.processors.inbox_normalizer import normalize_inbox_files, source_type_from_filename
 from src.scheduler.daily_job import get_review_questions_for_today, rebuild_answers, process_pending_questions, run_daily_loop, run_daily_push
 from src.storage.db import init_db
 from src.storage import repository
@@ -159,13 +159,31 @@ def import_one_file(db_path: str, path: Path, source_type: str = "real_interview
     """Extract and store questions from one source file."""
     text = path.read_text(encoding="utf-8", errors="ignore")
     questions = extract_questions(text)
+    label = extract_material_label(text)
+    resolved_source_type = source_type_from_filename(path, source_type)
     result = repository.bulk_insert_questions(
         db_path,
         questions,
-        source_url=str(path),
-        source_type=source_type,
+        source_url=build_source_reference(path, label),
+        source_type=resolved_source_type,
     )
     return result, len(questions)
+
+
+def extract_material_label(text: str) -> str | None:
+    """Read the normalized material label emitted from inbox filenames."""
+    for line in text.splitlines()[:12]:
+        stripped = line.strip()
+        if stripped.startswith("- 资料标签："):
+            return stripped.split("：", 1)[1].strip() or None
+    return None
+
+
+def build_source_reference(path: Path, label: str | None = None) -> str:
+    """Make source_url useful in DingTalk instead of only showing a filesystem path."""
+    if label:
+        return f"{label} | {path}"
+    return str(path)
 
 
 def cmd_process(args: argparse.Namespace) -> None:

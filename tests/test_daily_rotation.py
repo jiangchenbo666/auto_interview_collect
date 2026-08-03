@@ -144,6 +144,55 @@ def test_daily_mixes_foundation_ai_nowcoder_and_public_sources(tmp_path):
     assert nowcoder_id in selected_ids
 
 
+def test_duplicate_nowcoder_source_promotes_existing_public_question(tmp_path):
+    db_path = tmp_path / "interview.db"
+    init_db(db_path)
+    question = "问压力测试和测试流程？"
+    public_id = repository.insert_question(
+        db_path,
+        question,
+        source_url="https://www.xiaolincoding.com/interview/business_testing.html",
+        source_type="public_url",
+    )
+    repository.update_question_category(db_path, public_id, "性能测试")
+
+    result = repository.bulk_insert_questions(
+        db_path,
+        [question],
+        source_url="牛客网-字节一面 | data/raw/real_interviews/nowcoder/牛客网-字节一面.md",
+        source_type="nowcoder",
+    )
+    rows = repository.export_questions(db_path)
+
+    assert result["accepted"] == 0
+    assert rows[0]["source_type"] == "nowcoder"
+    assert rows[0]["source_url"].startswith("牛客网-字节一面")
+
+
+def test_daily_finds_nowcoder_even_after_many_public_candidates(tmp_path):
+    db_path = tmp_path / "interview.db"
+    init_db(db_path)
+    for index in range(1, 90):
+        question_id = repository.insert_question(
+            db_path,
+            f"公开接口测试题 {index}？",
+            source_url=f"https://www.xiaolincoding.com/interview/{index}.html",
+            source_type="public_url",
+        )
+        repository.update_question_category(db_path, question_id, "接口测试")
+    nowcoder_id = repository.insert_question(
+        db_path,
+        "问压力测试和测试流程？",
+        source_url="牛客网 | data/raw/real_interviews/nowcoder/牛客网.md",
+        source_type="nowcoder",
+    )
+    repository.update_question_category(db_path, nowcoder_id, "性能测试")
+
+    rows = repository.get_pending_for_daily(db_path, limit=6)
+
+    assert nowcoder_id in {row["id"] for row in rows}
+
+
 def test_is_sunday():
     assert is_sunday(datetime(2026, 7, 26)) is True
     assert is_sunday(datetime(2026, 7, 24)) is False

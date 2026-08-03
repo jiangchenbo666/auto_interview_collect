@@ -187,7 +187,7 @@ def build_question_card(index: int, item: dict[str, Any]) -> str:
     category = escape(str(item.get("category") or "未分类"))
     difficulty = escape(str(item.get("difficulty") or "medium"))
     topic_type = escape(infer_topic_type(item))
-    source = escape(str(item.get("source_url") or "未记录"))
+    source = escape(display_source(item))
     answer = escape(str(item.get("answer") or "待生成"))
     project_answer = escape(str(item.get("project_answer") or item.get("answer") or "待生成"))
     evidence = build_evidence_block(item.get("knowledge_evidence") or [])
@@ -254,12 +254,23 @@ def infer_topic_type(item: dict[str, Any]) -> str:
     """Derive a compact topic type for the HTML badges."""
     source = str(item.get("source_url") or "").lower()
     category = str(item.get("category") or "")
-    if "foundation_bagu" in source:
+    source_type = str(item.get("source_type") or "").lower()
+    if source_type == "foundation_bagu" or "foundation_bagu" in source:
         return "八股底盘"
-    if "ai_product_foundation" in source or category in {"AI 工程", "RAG 与 LLM 应用"}:
+    if source_type == "ai_engineering" or "ai_product_foundation" in source or category in {"AI 工程", "RAG 与 LLM 应用"}:
         return "AI 工程"
-    if "nowcoder" in source or "牛客" in source:
+    if source_type == "nowcoder" or "nowcoder" in source or "牛客" in source:
         return "真实面经"
     if "sample_questions" in source:
         return "Demo 样例"
     return "面试题"
+
+
+def display_source(item: dict[str, Any]) -> str:
+    """Show labels such as 牛客网-字节一面 before raw paths."""
+    source = str(item.get("source_url") or "").strip()
+    if not source:
+        return "未记录"
+    if " | " in source:
+        return source.split(" | ", 1)[0].strip()
+    return source

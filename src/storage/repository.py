@@ -66,7 +66,12 @@ def bulk_insert_questions(
     source_url: str | None = None,
     source_type: str | None = "manual",
 ) -> dict[str, int]:
-    """Insert many extracted questions and count accepted/skipped rows."""
+    """Insert many extracted questions and count accepted/skipped rows.
+
+    If a later, more useful source contains a duplicate question, refresh the
+    existing row's source metadata so user-curated Nowcoder notes can replace
+    older generic public sources in daily review.
+    """
     inserted = 0
     duplicated_or_empty = 0
     seen_hashes: set[str] = set()
@@ -77,7 +82,11 @@ def bulk_insert_questions(
             duplicated_or_empty += 1
             continue
         q_hash = question_hash(clean_question)
-        if q_hash in seen_hashes or question_exists(db_path, q_hash):
+        if q_hash in seen_hashes:
+            duplicated_or_empty += 1
+            continue
+        if question_exists(db_path, q_hash):
+            refresh_duplicate_source(db_path, q_hash, source_url, source_type)
             duplicated_or_empty += 1
             continue
         inserted_id = insert_question(db_path, clean_question, source_url, source_type)
@@ -88,6 +97,65 @@ def bulk_insert_questions(
             inserted += 1
 
     return {"accepted": inserted, "skipped": duplicated_or_empty}
+
+
+def refresh_duplicate_source(
+    db_path: str | Path,
+    q_hash: str,
+    source_url: str | None,
+    source_type: str | None,
+) -> None:
+    """Promote duplicate questions when the new source is more useful."""
+    if not source_url and not source_type:
+        return
+    with connect(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT id, source_url, source_type, status
+            FROM interview_questions
+            WHERE question_hash = ?
+            """,
+            (q_hash,),
+        ).fetchone()
+        if not row:
+            return
+        old_priority = source_priority(row["source_url"], row["source_type"])
+        new_priority = source_priority(source_url, source_type)
+        if new_priority <= old_priority:
+            return
+        status = row["status"]
+        if status in {"answered", "packaged", "pushed"}:
+            status = "classified"
+        connection.execute(
+            """
+            UPDATE interview_questions
+            SET source_url = COALESCE(?, source_url),
+                source_type = COALESCE(?, source_type),
+                status = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (source_url, source_type, status, row["id"]),
+        )
+
+
+def source_priority(source_url: str | None, source_type: str | None) -> int:
+    """Higher score means the source is more useful for daily review."""
+    source = str(source_url or "").lower()
+    kind = str(source_type or "").lower()
+    if "牛客网" in str(source_url or "") or kind == "nowcoder":
+        return 5
+    if kind == "ai_engineering" or "ai_product_foundation" in source:
+        return 4
+    if kind == "foundation_bagu" or "foundation_bagu" in source:
+        return 4
+    if "real_interviews" in source:
+        return 3
+    if source.startswith("http"):
+        return 2
+    if "sample_questions" in source:
+        return 1
+    return 0
 
 
 def question_exists(db_path: str | Path, q_hash: str) -> bool:
@@ -121,7 +189,7 @@ def get_questions_by_status(
 
 def get_pending_for_daily(db_path: str | Path, limit: int = 3) -> list[dict[str, Any]]:
     """Pick a mixed daily review set instead of one long same-topic queue."""
-    candidates = get_daily_candidates(db_path, max(limit * 8, 60))
+    candidates = get_daily_candidates(db_path, max(limit * 30, 240))
     return take_mixed_daily_questions(candidates, limit)
 
 
@@ -134,8 +202,12 @@ def get_daily_candidates(db_path: str | Path, limit: int = 80) -> list[dict[str,
             WHERE status IN ('packaged', 'answered', 'classified')
             ORDER BY
                 CASE
+                    WHEN COALESCE(source_type, '') = 'nowcoder' THEN 0
+                    WHEN COALESCE(source_url, '') LIKE '%牛客网%' THEN 0
+                    WHEN COALESCE(source_type, '') = 'ai_engineering' THEN 1
                     WHEN COALESCE(source_url, '') LIKE '%foundation_bagu.md%' THEN 0
                     WHEN COALESCE(source_url, '') LIKE '%ai_product_foundation.md%' THEN 0
+                    WHEN COALESCE(source_type, '') = 'foundation_bagu' THEN 1
                     WHEN COALESCE(source_url, '') LIKE '%sample_questions.md%' THEN 2
                     ELSE 1
                 END ASC,
@@ -161,7 +233,7 @@ def take_mixed_daily_questions(candidates: list[dict[str, Any]], limit: int) -> 
     for item in candidates:
         buckets[daily_bucket(item)].append(item)
 
-    bucket_order = ["bagu", "ai", "nowcoder", "public", "other"]
+    bucket_order = ["nowcoder", "ai", "bagu", "public", "other"]
     selected: list[dict[str, Any]] = []
     selected_ids: set[int] = set()
 
@@ -186,12 +258,16 @@ def take_mixed_daily_questions(candidates: list[dict[str, Any]], limit: int) -> 
 def daily_bucket(item: dict[str, Any]) -> str:
     """Classify one ready row into a daily selection bucket."""
     source = str(item.get("source_url") or "").lower()
+    raw_source = str(item.get("source_url") or "")
+    source_type = str(item.get("source_type") or "").lower()
     category = str(item.get("category") or "").lower()
-    if "foundation_bagu.md" in source:
-        return "bagu"
-    if "ai_product_foundation.md" in source or "ai" in category or "rag" in category or "llm" in category:
+    if source_type == "nowcoder" or "牛客网" in raw_source or "nowcoder" in source:
+        return "nowcoder"
+    if source_type == "ai_engineering" or "ai_product_foundation.md" in source or "ai" in category or "rag" in category or "llm" in category:
         return "ai"
-    if "nowcoder" in source or "面经资料-未整理" in source or "面经资料/待整理" in source:
+    if source_type == "foundation_bagu" or "foundation_bagu.md" in source:
+        return "bagu"
+    if "面经资料-未整理" in raw_source or "面经资料/待整理" in raw_source:
         return "nowcoder"
     if source.startswith("http") or "real_interviews" in source:
         return "public"

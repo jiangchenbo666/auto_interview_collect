@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.processors.inbox_normalizer import normalize_inbox_files
+from src.processors.inbox_normalizer import normalize_inbox_files, source_label_from_filename, source_type_from_filename
 
 
 def test_normalize_inbox_files_writes_markdown(tmp_path):
@@ -63,3 +63,11 @@ def test_normalize_inbox_files_registers_image_without_vision(tmp_path):
     content = files[0].read_text(encoding="utf-8")
     assert "截图待解析" in content
     assert "nowcoder-api.png" in content
+
+
+def test_filename_source_label_protocol(tmp_path):
+    assert source_label_from_filename(tmp_path / "牛客网-字节一面.md") == "牛客网-字节一面"
+    assert source_label_from_filename(tmp_path / "牛客网.md") == "牛客网"
+    assert source_type_from_filename(tmp_path / "牛客网-字节一面.md") == "nowcoder"
+    assert source_label_from_filename(tmp_path / "ai-RAG评测.md") == "AI 工程-RAG评测"
+    assert source_type_from_filename(tmp_path / "ai-RAG评测.md") == "ai_engineering"

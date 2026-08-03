@@ -103,6 +103,7 @@ def iter_inbox_files(root: Path) -> list[Path]:
 def build_normalized_markdown(source_path: Path, text: str) -> str:
     """Build a normalized markdown note with extracted questions first."""
     title = title_from_text(source_path, text)
+    label = source_label_from_filename(source_path)
     source_url = extract_source_url(text)
     questions = extract_questions(text)
     lines = [
@@ -111,6 +112,8 @@ def build_normalized_markdown(source_path: Path, text: str) -> str:
         f"- 原始文件：{source_path}",
         f"- 整理时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
     ]
+    if label:
+        lines.append(f"- 资料标签：{label}")
     if source_url:
         lines.append(f"- 来源链接：{source_url}")
     lines.extend(["", "## 抽取题目", ""])
@@ -184,11 +187,43 @@ def safe_stem(stem: str) -> str:
 
 def title_from_text(source_path: Path, text: str) -> str:
     """Use the first markdown heading when present, otherwise the file stem."""
+    label = source_label_from_filename(source_path)
+    if label:
+        return label
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("# "):
             return stripped.lstrip("# ").strip() or source_path.stem
     return source_path.stem
+
+
+def source_label_from_filename(path: Path) -> str | None:
+    """Read source labels from filenames like 牛客网-字节一面.md or ai-RAG.md."""
+    stem = path.stem.strip()
+    lower = stem.lower()
+    if stem.startswith("牛客网"):
+        return stem
+    if lower == "ai":
+        return "AI 工程"
+    if lower.startswith("ai-") or lower.startswith("ai_"):
+        return "AI 工程-" + stem[3:].strip("-_ ")
+    if stem.startswith(("八股", "数据库", "Linux", "TCP", "Docker")):
+        return stem
+    return None
+
+
+def source_type_from_filename(path: Path, default: str = "real_interview") -> str:
+    """Map filename labels to source_type for queue mixing and display."""
+    label = source_label_from_filename(path)
+    if not label:
+        return default
+    if label.startswith("牛客网"):
+        return "nowcoder"
+    if label.startswith("AI 工程"):
+        return "ai_engineering"
+    if label.startswith(("八股", "数据库", "Linux", "TCP", "Docker")):
+        return "foundation_bagu"
+    return default
 
 
 def extract_source_url(text: str) -> str | None:
