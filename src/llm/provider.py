@@ -8,7 +8,7 @@ from src.llm.kimi_client import (
     extract_interview_material_from_image_with_kimi,
     generate_interview_answer_with_kimi,
 )
-from src.llm.openai_client import generate_interview_answer_with_openai
+from src.llm.openai_client import generate_interview_answer_with_openai, llm_max_tokens, llm_timeout_seconds
 from src.push.wecom_bot import load_env_file
 
 
@@ -35,6 +35,10 @@ def generate_interview_answer_with_llm(
     """Generate answers with the configured LLM provider."""
     load_env_file()
     selected = (provider or os.getenv("LLM_PROVIDER", "deepseek")).lower()
+    print(
+        f"[llm] provider={selected} timeout={llm_timeout_seconds()}s max_tokens={llm_max_tokens()}",
+        flush=True,
+    )
     if selected == "deepseek":
         return generate_interview_answer_with_deepseek(
             question,

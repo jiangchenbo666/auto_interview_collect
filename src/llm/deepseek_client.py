@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from src.llm.openai_client import build_prompt, llm_timeout_seconds, split_answer_sections
+from src.llm.openai_client import build_prompt, llm_max_tokens, llm_timeout_seconds, split_answer_sections
 from src.push.wecom_bot import load_env_file
 
 
@@ -32,10 +32,11 @@ def generate_interview_answer_with_deepseek(
         api_key=api_key,
         base_url=os.getenv("DEEPSEEK_BASE_URL", DEFAULT_DEEPSEEK_BASE_URL),
         timeout=llm_timeout_seconds(),
-        max_retries=1,
+        max_retries=0,
     )
     response = client.chat.completions.create(
         model=model or os.getenv("DEEPSEEK_MODEL", DEFAULT_DEEPSEEK_MODEL),
+        max_tokens=llm_max_tokens(),
         messages=[
             {
                 "role": "system",

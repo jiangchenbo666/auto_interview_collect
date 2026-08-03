@@ -37,6 +37,7 @@ jobs:
       KIMI_BASE_URL: https://api.moonshot.cn/v1
       KIMI_MODEL: kimi-k2.6
       LLM_TIMEOUT_SECONDS: "120"
+      LLM_MAX_TOKENS: "1400"
       PYTHONUNBUFFERED: "1"
       DINGTALK_WEBHOOK_URL: ${{ secrets.DINGTALK_WEBHOOK_URL }}
       DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}

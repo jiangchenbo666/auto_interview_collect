@@ -8,6 +8,7 @@ from src.push.wecom_bot import load_env_file
 
 DEFAULT_OPENAI_MODEL = "gpt-5"
 DEFAULT_LLM_TIMEOUT_SECONDS = 120.0
+DEFAULT_LLM_MAX_TOKENS = 1400
 
 
 def has_openai_config() -> bool:
@@ -61,6 +62,15 @@ def llm_timeout_seconds() -> float:
         return max(5.0, float(raw_value))
     except ValueError:
         return DEFAULT_LLM_TIMEOUT_SECONDS
+
+
+def llm_max_tokens() -> int:
+    """Read a response token cap so one interview answer does not run forever."""
+    raw_value = os.getenv("LLM_MAX_TOKENS", str(DEFAULT_LLM_MAX_TOKENS))
+    try:
+        return max(500, int(raw_value))
+    except ValueError:
+        return DEFAULT_LLM_MAX_TOKENS
 
 
 def build_prompt(
