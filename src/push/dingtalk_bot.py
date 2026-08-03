@@ -41,7 +41,10 @@ def send_dingtalk_markdown(
     )
     with urllib.request.urlopen(request, timeout=10) as response:
         body = response.read().decode("utf-8")
-    return json.loads(body)
+    result = json.loads(body)
+    if int(result.get("errcode", -1)) != 0:
+        raise RuntimeError(f"DingTalk push failed: {result}")
+    return result
 
 
 def sign_url(webhook: str, secret: str | None = None) -> str:

@@ -120,13 +120,13 @@ def get_questions_by_status(
 
 
 def get_pending_for_daily(db_path: str | Path, limit: int = 3) -> list[dict[str, Any]]:
-    """Pick questions ready for daily review.
+    """Pick a mixed daily review set instead of one long same-topic queue."""
+    candidates = get_daily_candidates(db_path, max(limit * 8, 60))
+    return take_mixed_daily_questions(candidates, limit)
 
-    Priority:
-    1. Foundation topics added for the current study plan
-    2. Real sources before bundled samples
-    3. Never pushed before, then lower review_count, then older id
-    """
+
+def get_daily_candidates(db_path: str | Path, limit: int = 80) -> list[dict[str, Any]]:
+    """Fetch ready questions with broad source priority for later bucket mixing."""
     with connect(db_path) as connection:
         rows = connection.execute(
             """
@@ -141,12 +141,61 @@ def get_pending_for_daily(db_path: str | Path, limit: int = 3) -> list[dict[str,
                 END ASC,
                 COALESCE(last_pushed_at, ''),
                 review_count ASC,
-                id ASC
+                id DESC
             LIMIT ?
             """,
             (limit,),
         ).fetchall()
     return [row_to_dict(row) for row in rows]
+
+
+def take_mixed_daily_questions(candidates: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    """Round-robin across source buckets: bagu, AI, Nowcoder/user notes, public, fallback."""
+    buckets = {
+        "bagu": [],
+        "ai": [],
+        "nowcoder": [],
+        "public": [],
+        "other": [],
+    }
+    for item in candidates:
+        buckets[daily_bucket(item)].append(item)
+
+    bucket_order = ["bagu", "ai", "nowcoder", "public", "other"]
+    selected: list[dict[str, Any]] = []
+    selected_ids: set[int] = set()
+
+    while len(selected) < limit:
+        changed = False
+        for bucket in bucket_order:
+            while buckets[bucket] and int(buckets[bucket][0]["id"]) in selected_ids:
+                buckets[bucket].pop(0)
+            if not buckets[bucket]:
+                continue
+            item = buckets[bucket].pop(0)
+            selected.append(item)
+            selected_ids.add(int(item["id"]))
+            changed = True
+            if len(selected) >= limit:
+                break
+        if not changed:
+            break
+    return selected
+
+
+def daily_bucket(item: dict[str, Any]) -> str:
+    """Classify one ready row into a daily selection bucket."""
+    source = str(item.get("source_url") or "").lower()
+    category = str(item.get("category") or "").lower()
+    if "foundation_bagu.md" in source:
+        return "bagu"
+    if "ai_product_foundation.md" in source or "ai" in category or "rag" in category or "llm" in category:
+        return "ai"
+    if "nowcoder" in source or "面经资料-未整理" in source or "面经资料/待整理" in source:
+        return "nowcoder"
+    if source.startswith("http") or "real_interviews" in source:
+        return "public"
+    return "other"
 
 
 def count_unreviewed_ready_questions(db_path: str | Path) -> int:

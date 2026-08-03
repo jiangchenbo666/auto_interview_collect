@@ -103,6 +103,47 @@ def test_daily_prefers_ai_foundation_topics_over_older_real_sources(tmp_path):
     assert rows[0]["id"] == ai_id
 
 
+def test_daily_mixes_foundation_ai_nowcoder_and_public_sources(tmp_path):
+    db_path = tmp_path / "interview.db"
+    init_db(db_path)
+    old_ids = [
+        repository.insert_question(
+            db_path,
+            f"普通测试基础题 {index} 应该被混合策略打散吗？",
+            source_url=f"https://example.com/test-basic-{index}",
+            source_type="public_url",
+        )
+        for index in range(1, 7)
+    ]
+    foundation_id = repository.insert_question(
+        db_path,
+        "MySQL 索引为什么常用 B+ 树？",
+        source_url="data/raw/real_interviews/foundation_bagu.md",
+        source_type="real_interview",
+    )
+    ai_id = repository.insert_question(
+        db_path,
+        "什么是 LLM evaluation harness？",
+        source_url="data/raw/real_interviews/ai_product_foundation.md",
+        source_type="real_interview",
+    )
+    nowcoder_id = repository.insert_question(
+        db_path,
+        "接口自动化怎么实现的？",
+        source_url="data/raw/real_interviews/nowcoder/nowcoder-api.md",
+        source_type="real_interview",
+    )
+    for question_id in [*old_ids, foundation_id, ai_id, nowcoder_id]:
+        repository.update_question_category(db_path, question_id, "测试基础")
+
+    rows = repository.get_pending_for_daily(db_path, limit=6)
+    selected_ids = {row["id"] for row in rows}
+
+    assert foundation_id in selected_ids
+    assert ai_id in selected_ids
+    assert nowcoder_id in selected_ids
+
+
 def test_is_sunday():
     assert is_sunday(datetime(2026, 7, 26)) is True
     assert is_sunday(datetime(2026, 7, 24)) is False
