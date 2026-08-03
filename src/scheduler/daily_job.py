@@ -37,6 +37,7 @@ def process_pending_questions(
     classified_count = 0
 
     for item in raw_questions:
+        print(f"[process] classify question #{item['id']}", flush=True)
         category, difficulty = classify_question(item["question"])
         repository.update_question_category(db_path, item["id"], category, difficulty)
         classified_count += 1
@@ -44,6 +45,7 @@ def process_pending_questions(
     classified = repository.get_questions_by_status(db_path, "classified", limit)
     answered_count = 0
     for item in classified:
+        print(f"[process] answer question #{item['id']}", flush=True)
         category = item.get("category") or "测试基础"
         snippets = retrieve_relevant_snippets(item["question"], vault_path=vault_path)
         knowledge_context = format_snippets(snippets)

@@ -5,7 +5,7 @@ import mimetypes
 import os
 from pathlib import Path
 
-from src.llm.openai_client import build_prompt, split_answer_sections
+from src.llm.openai_client import build_prompt, llm_timeout_seconds, split_answer_sections
 from src.push.wecom_bot import load_env_file
 
 
@@ -36,6 +36,8 @@ def generate_interview_answer_with_kimi(
         base_url=os.getenv("KIMI_BASE_URL")
         or os.getenv("MOONSHOT_BASE_URL")
         or DEFAULT_KIMI_BASE_URL,
+        timeout=llm_timeout_seconds(),
+        max_retries=1,
     )
     response = client.chat.completions.create(
         model=model or os.getenv("KIMI_MODEL") or os.getenv("MOONSHOT_MODEL") or DEFAULT_KIMI_MODEL,
@@ -84,6 +86,8 @@ def extract_interview_material_from_image_with_kimi(
         base_url=os.getenv("KIMI_BASE_URL")
         or os.getenv("MOONSHOT_BASE_URL")
         or DEFAULT_KIMI_BASE_URL,
+        timeout=llm_timeout_seconds(),
+        max_retries=1,
     )
     response = client.chat.completions.create(
         model=(

@@ -36,6 +36,8 @@ jobs:
       MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
       KIMI_BASE_URL: https://api.moonshot.cn/v1
       KIMI_MODEL: kimi-k2.6
+      LLM_TIMEOUT_SECONDS: "60"
+      PYTHONUNBUFFERED: "1"
       DINGTALK_WEBHOOK_URL: ${{ secrets.DINGTALK_WEBHOOK_URL }}
       DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
       OBSIDIAN_REPOSITORY: jiangchenbo666/Obsidian-Vault
@@ -82,6 +84,7 @@ jobs:
         run: python -m src.main vault-status --limit 3
 
       - name: Build daily study page
+        timeout-minutes: 25
         shell: bash
         run: |
           mkdir -p public
@@ -110,7 +113,7 @@ jobs:
               LLM_FLAG=""
               ;;
           esac
-          python -m src.main study $LLM_FLAG --no-open --limit 8 --process-limit 40 --low-inventory-threshold 30 --html-output public/index.html --today-output public/today.md --bank-output public/questions.md
+          python -u -m src.main study $LLM_FLAG --no-open --limit 8 --process-limit 40 --low-inventory-threshold 30 --html-output public/index.html --today-output public/today.md --bank-output public/questions.md
           touch public/.nojekyll
 
       - name: Save interview database cache

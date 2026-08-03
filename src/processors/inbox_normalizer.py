@@ -65,6 +65,7 @@ def normalize_inbox_files(
                 if output_path.exists() and not overwrite:
                     skipped += 1
                     continue
+                print(f"[inbox] parse image {source_path}", flush=True)
                 normalized, parsed, error = build_image_markdown(source_path, use_vision=use_vision)
                 if parsed:
                     images_parsed += 1

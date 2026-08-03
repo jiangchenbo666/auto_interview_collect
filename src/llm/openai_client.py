@@ -7,6 +7,7 @@ from src.push.wecom_bot import load_env_file
 
 
 DEFAULT_OPENAI_MODEL = "gpt-5"
+DEFAULT_LLM_TIMEOUT_SECONDS = 60.0
 
 
 def has_openai_config() -> bool:
@@ -34,7 +35,7 @@ def generate_interview_answer_with_openai(
     except ImportError as exc:
         raise RuntimeError("请先安装依赖：pip install -r requirements.txt") from exc
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), timeout=llm_timeout_seconds())
     prompt = build_prompt(question, category, knowledge_context, project_profile)
     response = client.responses.create(
         model=selected_model,
@@ -51,6 +52,15 @@ def generate_interview_answer_with_openai(
     )
     text = extract_response_text(response)
     return split_answer_sections(text)
+
+
+def llm_timeout_seconds() -> float:
+    """Read a bounded LLM request timeout from environment."""
+    raw_value = os.getenv("LLM_TIMEOUT_SECONDS", str(DEFAULT_LLM_TIMEOUT_SECONDS))
+    try:
+        return max(5.0, float(raw_value))
+    except ValueError:
+        return DEFAULT_LLM_TIMEOUT_SECONDS
 
 
 def build_prompt(

@@ -129,6 +129,7 @@ def cmd_refresh_sources(args: argparse.Namespace) -> None:
     for source in sources:
         name = source.get("name") or source["url"]
         try:
+            print(f"[source] fetching {name}", flush=True)
             text = fetch_url_text(source["url"])
             questions = extract_questions(text)
             result = repository.bulk_insert_questions(
@@ -140,14 +141,14 @@ def cmd_refresh_sources(args: argparse.Namespace) -> None:
             total_extracted += len(questions)
             total_accepted += result["accepted"]
             total_skipped += result["skipped"]
-            print(f"[ok] {name}: extracted={len(questions)} accepted={result['accepted']} skipped={result['skipped']}")
+            print(f"[ok] {name}: extracted={len(questions)} accepted={result['accepted']} skipped={result['skipped']}", flush=True)
         except Exception as exc:  # noqa: BLE001
             failed.append((name, str(exc)))
-            print(f"[failed] {name}: {exc}")
+            print(f"[failed] {name}: {exc}", flush=True)
 
-    print(f"Sources enabled: {len(sources)}")
-    print(f"Extracted {total_extracted} questions.")
-    print(f"Accepted {total_accepted}, skipped {total_skipped}.")
+    print(f"Sources enabled: {len(sources)}", flush=True)
+    print(f"Extracted {total_extracted} questions.", flush=True)
+    print(f"Accepted {total_accepted}, skipped {total_skipped}.", flush=True)
     if failed:
         print("Failed sources:")
         for name, reason in failed:
@@ -251,12 +252,14 @@ def cmd_study(args: argparse.Namespace) -> None:
     """Daily one-command workflow for real study."""
     init_db(args.db)
     if args.refresh_sources:
+        print("[stage] refresh public sources", flush=True)
         refresh_args = argparse.Namespace(
             db=args.db,
             config=args.sources_config,
         )
         cmd_refresh_sources(refresh_args)
     if args.normalize_inbox:
+        print("[stage] normalize Obsidian/inbox materials", flush=True)
         use_vision = getattr(args, "vision_inbox", None)
         if use_vision is None:
             use_vision = args.use_llm
@@ -269,11 +272,13 @@ def cmd_study(args: argparse.Namespace) -> None:
         print(
             "Inbox normalized: "
             f"scanned={result.scanned} written={result.written} skipped={result.skipped} "
-            f"images_parsed={result.images_parsed} images_pending={result.images_pending}"
+            f"images_parsed={result.images_parsed} images_pending={result.images_pending}",
+            flush=True,
         )
         for error in result.errors:
-            print(f"[image warning] {error}")
+            print(f"[image warning] {error}", flush=True)
     if args.import_local:
+        print("[stage] import local real interview markdown", flush=True)
         local_root = Path(args.real_dir)
         if local_root.exists():
             import_args = argparse.Namespace(
@@ -283,12 +288,14 @@ def cmd_study(args: argparse.Namespace) -> None:
             )
             cmd_import_folder(import_args)
 
+    print("[stage] classify and generate answers", flush=True)
     changed = process_pending_questions(
         args.db,
         vault_path=args.vault,
         limit=args.process_limit,
         use_llm=args.use_llm,
     )
+    print("[stage] build markdown/html exports", flush=True)
     mode, questions = get_review_questions_for_today(args.db, limit=args.limit)
     remaining_after_today = max(
         0,
@@ -310,15 +317,15 @@ def cmd_study(args: argparse.Namespace) -> None:
     if args.mark_reviewed:
         repository.mark_questions_pushed(args.db, [item["id"] for item in questions])
 
-    print("Study page generated.")
-    print(f"Mode: {mode}")
-    print(f"Processed state transitions: {changed}")
-    print(f"Questions shown: {len(questions)}")
-    print(f"Unreviewed ready after today: {remaining_after_today}")
+    print("Study page generated.", flush=True)
+    print(f"Mode: {mode}", flush=True)
+    print(f"Processed state transitions: {changed}", flush=True)
+    print(f"Questions shown: {len(questions)}", flush=True)
+    print(f"Unreviewed ready after today: {remaining_after_today}", flush=True)
     for item in questions:
-        print(f"- [{item['id']}] {item['question']}")
-    print(f"Today's HTML page: {args.html_output}")
-    print(f"Marked reviewed: {args.mark_reviewed}")
+        print(f"- [{item['id']}] {item['question']}", flush=True)
+    print(f"Today's HTML page: {args.html_output}", flush=True)
+    print(f"Marked reviewed: {args.mark_reviewed}", flush=True)
     if args.open:
         open_in_browser(args.html_output)
         print("Opened today's HTML page in your browser.")
