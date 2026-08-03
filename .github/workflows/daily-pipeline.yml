@@ -44,6 +44,7 @@ jobs:
       OBSIDIAN_REPOSITORY: jiangchenbo666/Obsidian-Vault
       OBSIDIAN_PAT: ${{ secrets.OBSIDIAN_PAT }}
       STUDY_PAGE_URL: https://jiangchenbo666.github.io/auto_interview_collect/
+      PAGES_ARTIFACT_NAME: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
       - name: Checkout tool repository
@@ -138,8 +139,11 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
+          name: ${{ env.PAGES_ARTIFACT_NAME }}
           path: public
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: ${{ env.PAGES_ARTIFACT_NAME }}
