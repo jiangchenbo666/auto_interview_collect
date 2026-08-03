@@ -619,7 +619,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_dingtalk.set_defaults(func=cmd_push_dingtalk, title="Daily Interview Review")
 
     p_daily = init_parser.add_parser("daily", help="生成或推送今日学习内容")
-    p_daily.add_argument("--limit", type=int, default=8)
+    p_daily.add_argument("--limit", type=int, default=6)
     p_daily.add_argument("--dry-run", action="store_true")
     p_daily.add_argument("--output", help="把今日复习内容保存为 Markdown 文件")
     p_daily.add_argument("--html-output", default=DEFAULT_TODAY_HTML_OUTPUT, help="保存 HTML 复习页面")
@@ -630,8 +630,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_daily.set_defaults(func=cmd_daily)
 
     p_study = init_parser.add_parser("study", help="每日学习：刷新真实来源、处理答案、生成页面、默认标记已复习")
-    p_study.add_argument("--limit", type=int, default=8)
-    p_study.add_argument("--process-limit", type=int, default=50)
+    p_study.add_argument("--limit", type=int, default=6)
+    p_study.add_argument("--process-limit", type=int, default=12)
     p_study.add_argument("--low-inventory-threshold", type=int, default=30)
     p_study.add_argument("--sources-config", default=DEFAULT_SOURCES_CONFIG)
     p_study.add_argument("--real-dir", default=DEFAULT_REAL_INTERVIEWS_DIR)
@@ -665,7 +665,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_serve = init_parser.add_parser("serve-daily", help="常驻进程，每天定时处理并推送")
     p_serve.add_argument("--time", default="08:30", help="每日推送时间，格式 HH:MM")
-    p_serve.add_argument("--limit", type=int, default=8)
+    p_serve.add_argument("--limit", type=int, default=6)
     p_serve.add_argument("--dry-run", action="store_true")
     p_serve.add_argument("--vault", default=get_obsidian_vault_path(), help="Obsidian vault 路径")
     p_serve.add_argument("--use-llm", action="store_true", help="使用 .env 中配置的 LLM API 生成答案")

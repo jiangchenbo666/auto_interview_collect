@@ -50,6 +50,7 @@ def normalize_inbox_files(
         for source_path in iter_inbox_files(root):
             scanned += 1
             if source_path.suffix.lower() in SUPPORTED_TEXT_SUFFIXES:
+                print(f"[inbox] normalize text {source_path}", flush=True)
                 text = read_text(source_path)
                 if not text.strip():
                     skipped += 1

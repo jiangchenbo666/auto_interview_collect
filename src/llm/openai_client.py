@@ -7,7 +7,7 @@ from src.push.wecom_bot import load_env_file
 
 
 DEFAULT_OPENAI_MODEL = "gpt-5"
-DEFAULT_LLM_TIMEOUT_SECONDS = 60.0
+DEFAULT_LLM_TIMEOUT_SECONDS = 120.0
 
 
 def has_openai_config() -> bool:
