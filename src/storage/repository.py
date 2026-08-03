@@ -143,7 +143,7 @@ def source_priority(source_url: str | None, source_type: str | None) -> int:
     """Higher score means the source is more useful for daily review."""
     source = str(source_url or "").lower()
     kind = str(source_type or "").lower()
-    if "牛客网" in str(source_url or "") or kind == "nowcoder":
+    if kind in {"nowcoder", "curated_interview"} or has_curated_interview_marker(str(source_url or "")):
         return 5
     if kind == "ai_engineering" or "ai_product_foundation" in source:
         return 4
@@ -203,7 +203,9 @@ def get_daily_candidates(db_path: str | Path, limit: int = 80) -> list[dict[str,
             ORDER BY
                 CASE
                     WHEN COALESCE(source_type, '') = 'nowcoder' THEN 0
+                    WHEN COALESCE(source_type, '') = 'curated_interview' THEN 0
                     WHEN COALESCE(source_url, '') LIKE '%牛客网%' THEN 0
+                    WHEN COALESCE(source_url, '') LIKE '%面经%' THEN 0
                     WHEN COALESCE(source_type, '') = 'ai_engineering' THEN 1
                     WHEN COALESCE(source_url, '') LIKE '%foundation_bagu.md%' THEN 0
                     WHEN COALESCE(source_url, '') LIKE '%ai_product_foundation.md%' THEN 0
@@ -261,7 +263,7 @@ def daily_bucket(item: dict[str, Any]) -> str:
     raw_source = str(item.get("source_url") or "")
     source_type = str(item.get("source_type") or "").lower()
     category = str(item.get("category") or "").lower()
-    if source_type == "nowcoder" or "牛客网" in raw_source or "nowcoder" in source:
+    if source_type in {"nowcoder", "curated_interview"} or has_curated_interview_marker(raw_source) or "nowcoder" in source:
         return "nowcoder"
     if source_type == "ai_engineering" or "ai_product_foundation.md" in source or "ai" in category or "rag" in category or "llm" in category:
         return "ai"
@@ -272,6 +274,12 @@ def daily_bucket(item: dict[str, Any]) -> str:
     if source.startswith("http") or "real_interviews" in source:
         return "public"
     return "other"
+
+
+def has_curated_interview_marker(source: str) -> bool:
+    """Detect user-curated interview source labels/paths."""
+    markers = ("牛客", "面经", "一面", "二面", "三面", "笔试", "联想", "字节", "腾讯", "阿里", "美团", "百度", "网易", "华为")
+    return any(marker in source for marker in markers)
 
 
 def count_unreviewed_ready_questions(db_path: str | Path) -> int:

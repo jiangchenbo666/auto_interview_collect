@@ -41,7 +41,7 @@ def infer_topic_type(item: dict[str, Any]) -> str:
         return "八股底盘"
     if source_type == "ai_engineering" or "ai_product_foundation" in source or category in {"AI 工程", "RAG 与 LLM 应用"}:
         return "AI 工程"
-    if source_type == "nowcoder" or "nowcoder" in source or "牛客" in source:
+    if source_type in {"nowcoder", "curated_interview"} or "nowcoder" in source or "牛客" in source or "面经" in source:
         return "真实面经"
     if "sample_questions" in source:
         return "Demo 样例"

@@ -198,16 +198,17 @@ def title_from_text(source_path: Path, text: str) -> str:
 
 
 def source_label_from_filename(path: Path) -> str | None:
-    """Read source labels from filenames like 牛客网-字节一面.md or ai-RAG.md."""
+    """Infer a user-facing source label from natural filenames."""
     stem = path.stem.strip()
     lower = stem.lower()
-    if stem.startswith("牛客网"):
+    if is_curated_interview_filename(path):
         return stem
     if lower == "ai":
         return "AI 工程"
-    if lower.startswith("ai-") or lower.startswith("ai_"):
-        return "AI 工程-" + stem[3:].strip("-_ ")
-    if stem.startswith(("八股", "数据库", "Linux", "TCP", "Docker")):
+    if is_ai_filename(stem):
+        suffix = re.sub(r"(?i)^ai[-_\s]*", "", stem).strip("-_ ")
+        return "AI 工程" if not suffix else f"AI 工程-{suffix}"
+    if is_foundation_filename(stem):
         return stem
     return None
 
@@ -217,13 +218,37 @@ def source_type_from_filename(path: Path, default: str = "real_interview") -> st
     label = source_label_from_filename(path)
     if not label:
         return default
-    if label.startswith("牛客网"):
-        return "nowcoder"
+    if is_curated_interview_filename(path):
+        return "curated_interview"
     if label.startswith("AI 工程"):
         return "ai_engineering"
-    if label.startswith(("八股", "数据库", "Linux", "TCP", "Docker")):
+    if is_foundation_filename(label):
         return "foundation_bagu"
     return default
+
+
+def is_curated_interview_filename(path: Path) -> bool:
+    """Detect user-curated interview files with loose naming."""
+    stem = path.stem.strip()
+    parent_hint = any("面经资料" in part for part in path.parts)
+    interview_markers = ("牛客", "面经", "一面", "二面", "三面", "笔试", "联想", "字节", "腾讯", "阿里", "美团", "百度", "网易", "华为")
+    return parent_hint or any(marker in stem for marker in interview_markers)
+
+
+def is_ai_filename(stem: str) -> bool:
+    """Detect AI engineering notes without requiring one exact prefix."""
+    lower = stem.lower()
+    return any(marker in lower for marker in ("ai", "rag", "llm", "mvp", "harness", "eval")) or any(
+        marker in stem for marker in ("大模型", "智能体", "评测", "提示词", "向量", "检索增强")
+    )
+
+
+def is_foundation_filename(stem: str) -> bool:
+    """Detect foundation/bagu notes from common CS topic words."""
+    lower = stem.lower()
+    return any(marker in stem for marker in ("八股", "数据库", "索引", "网络", "操作系统", "性能", "压测")) or any(
+        marker in lower for marker in ("linux", "tcp", "docker", "mysql", "redis", "k8s", "cgroup", "namespace")
+    )
 
 
 def extract_source_url(text: str) -> str | None:

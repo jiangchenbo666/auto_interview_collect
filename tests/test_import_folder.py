@@ -62,5 +62,5 @@ def test_import_folder_splits_multi_question_nowcoder_file(tmp_path):
     assert len(rows) == 2
     assert "压力测试和测试流程" in questions
     assert "接口自动化怎么实现的" in questions
-    assert all(row["source_type"] == "nowcoder" for row in rows)
+    assert all(row["source_type"] == "curated_interview" for row in rows)
     assert all(row["source_url"].startswith("牛客网-字节一面") for row in rows)
