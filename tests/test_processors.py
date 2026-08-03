@@ -51,6 +51,11 @@ def test_classify_foundation_topics():
     assert classify_question("Docker Namespace 和 Cgroups 分别解决什么问题？")[0] == "Docker 与云原生"
 
 
+def test_classify_ai_engineering_topics():
+    assert classify_question("LLM evaluation harness 应该怎么设计？")[0] == "RAG 与 LLM 应用"
+    assert classify_question("AI 面试助手的 MVP 应该验证哪些假设？")[0] == "AI 工程"
+
+
 def test_generate_answer_contains_question():
     answer = generate_standard_answer("接口测试用例应该如何设计？", "接口测试")
     assert "接口测试" in answer

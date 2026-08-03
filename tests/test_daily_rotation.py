@@ -68,6 +68,41 @@ def test_daily_prefers_foundation_topics_over_older_real_sources(tmp_path):
     assert rows[0]["id"] == foundation_id
 
 
+def test_count_unreviewed_ready_questions_excludes_reviewed(tmp_path):
+    db_path = tmp_path / "interview.db"
+    init_db(db_path)
+    first = repository.insert_question(db_path, "MySQL 索引为什么常用 B+ 树？")
+    second = repository.insert_question(db_path, "TCP 三次握手为什么不是两次？")
+    repository.update_question_category(db_path, first, "数据库")
+    repository.update_question_category(db_path, second, "计算机网络")
+    repository.mark_questions_pushed(db_path, [first])
+
+    assert repository.count_unreviewed_ready_questions(db_path) == 1
+
+
+def test_daily_prefers_ai_foundation_topics_over_older_real_sources(tmp_path):
+    db_path = tmp_path / "interview.db"
+    init_db(db_path)
+    old_real_id = repository.insert_question(
+        db_path,
+        "回归测试的范围怎么确定？",
+        source_url="https://example.com/real",
+        source_type="public_url",
+    )
+    ai_id = repository.insert_question(
+        db_path,
+        "什么是 LLM evaluation harness？",
+        source_url="data/raw/real_interviews/ai_product_foundation.md",
+        source_type="real_interview",
+    )
+    repository.update_question_category(db_path, old_real_id, "测试基础")
+    repository.update_question_category(db_path, ai_id, "AI 工程")
+
+    rows = repository.get_pending_for_daily(db_path, limit=1)
+
+    assert rows[0]["id"] == ai_id
+
+
 def test_is_sunday():
     assert is_sunday(datetime(2026, 7, 26)) is True
     assert is_sunday(datetime(2026, 7, 24)) is False

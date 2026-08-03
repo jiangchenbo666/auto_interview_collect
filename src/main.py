@@ -246,7 +246,18 @@ def cmd_study(args: argparse.Namespace) -> None:
         use_llm=args.use_llm,
     )
     mode, questions = get_review_questions_for_today(args.db, limit=args.limit)
+    remaining_after_today = max(
+        0,
+        repository.count_unreviewed_ready_questions(args.db) - len(questions),
+    )
     markdown = build_daily_markdown_for_mode(mode, questions)
+    markdown = append_inventory_notice(
+        markdown,
+        shown_count=len(questions),
+        requested_count=args.limit,
+        remaining_after_today=remaining_after_today,
+        low_inventory_threshold=args.low_inventory_threshold,
+    )
     write_text_file(args.today_output, markdown)
     html_questions = attach_obsidian_evidence(questions, args.vault)
     write_text_file(args.html_output, build_today_html(html_questions, mode=mode))
@@ -259,6 +270,7 @@ def cmd_study(args: argparse.Namespace) -> None:
     print(f"Mode: {mode}")
     print(f"Processed state transitions: {changed}")
     print(f"Questions shown: {len(questions)}")
+    print(f"Unreviewed ready after today: {remaining_after_today}")
     for item in questions:
         print(f"- [{item['id']}] {item['question']}")
     print(f"Today's HTML page: {args.html_output}")
@@ -358,6 +370,26 @@ def prepend_page_link(markdown: str, page_url: str) -> str:
     if not clean_url:
         return markdown
     return f"完整复习页：[{clean_url}]({clean_url})\n\n{markdown}"
+
+
+def append_inventory_notice(
+    markdown: str,
+    shown_count: int,
+    requested_count: int,
+    remaining_after_today: int,
+    low_inventory_threshold: int,
+) -> str:
+    """Append a reminder when the review bank is running low."""
+    notices = []
+    if shown_count < requested_count:
+        notices.append(f"今天只凑够 {shown_count}/{requested_count} 道题，需要补充新的面经或八股资料。")
+    if remaining_after_today <= low_inventory_threshold:
+        notices.append(
+            f"题库余量提醒：未复习可推送题约 {remaining_after_today} 道，建议补充牛客面经、项目追问或 AI 工程题。"
+        )
+    if not notices:
+        return markdown
+    return f"{markdown}\n\n---\n\n## 资料库提醒\n" + "\n".join(f"- {notice}" for notice in notices)
 
 
 def attach_obsidian_evidence(
@@ -517,7 +549,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_dingtalk.set_defaults(func=cmd_push_dingtalk, title="Daily Interview Review")
 
     p_daily = init_parser.add_parser("daily", help="生成或推送今日学习内容")
-    p_daily.add_argument("--limit", type=int, default=3)
+    p_daily.add_argument("--limit", type=int, default=8)
     p_daily.add_argument("--dry-run", action="store_true")
     p_daily.add_argument("--output", help="把今日复习内容保存为 Markdown 文件")
     p_daily.add_argument("--html-output", default=DEFAULT_TODAY_HTML_OUTPUT, help="保存 HTML 复习页面")
@@ -528,8 +560,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_daily.set_defaults(func=cmd_daily)
 
     p_study = init_parser.add_parser("study", help="每日学习：刷新真实来源、处理答案、生成页面、默认标记已复习")
-    p_study.add_argument("--limit", type=int, default=5)
+    p_study.add_argument("--limit", type=int, default=8)
     p_study.add_argument("--process-limit", type=int, default=50)
+    p_study.add_argument("--low-inventory-threshold", type=int, default=30)
     p_study.add_argument("--sources-config", default=DEFAULT_SOURCES_CONFIG)
     p_study.add_argument("--real-dir", default=DEFAULT_REAL_INTERVIEWS_DIR)
     p_study.add_argument("--today-output", default=DEFAULT_TODAY_OUTPUT)
@@ -546,7 +579,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_serve = init_parser.add_parser("serve-daily", help="常驻进程，每天定时处理并推送")
     p_serve.add_argument("--time", default="08:30", help="每日推送时间，格式 HH:MM")
-    p_serve.add_argument("--limit", type=int, default=3)
+    p_serve.add_argument("--limit", type=int, default=8)
     p_serve.add_argument("--dry-run", action="store_true")
     p_serve.add_argument("--vault", default=get_obsidian_vault_path(), help="Obsidian vault 路径")
     p_serve.add_argument("--use-llm", action="store_true", help="使用 .env 中配置的 LLM API 生成答案")

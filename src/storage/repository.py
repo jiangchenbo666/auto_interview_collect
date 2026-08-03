@@ -135,6 +135,7 @@ def get_pending_for_daily(db_path: str | Path, limit: int = 3) -> list[dict[str,
             ORDER BY
                 CASE
                     WHEN COALESCE(source_url, '') LIKE '%foundation_bagu.md%' THEN 0
+                    WHEN COALESCE(source_url, '') LIKE '%ai_product_foundation.md%' THEN 0
                     WHEN COALESCE(source_url, '') LIKE '%sample_questions.md%' THEN 2
                     ELSE 1
                 END ASC,
@@ -146,6 +147,20 @@ def get_pending_for_daily(db_path: str | Path, limit: int = 3) -> list[dict[str,
             (limit,),
         ).fetchall()
     return [row_to_dict(row) for row in rows]
+
+
+def count_unreviewed_ready_questions(db_path: str | Path) -> int:
+    """Count ready questions that have not been displayed before."""
+    with connect(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT COUNT(*) AS count
+            FROM interview_questions
+            WHERE status IN ('packaged', 'answered', 'classified')
+              AND COALESCE(last_pushed_at, '') = ''
+            """
+        ).fetchone()
+    return int(row["count"]) if row else 0
 
 
 def get_weekly_review_questions(db_path: str | Path, limit: int = 10) -> list[dict[str, Any]]:
@@ -168,6 +183,7 @@ def get_weekly_review_questions(db_path: str | Path, limit: int = 10) -> list[di
                 ORDER BY
                     CASE
                         WHEN COALESCE(source_url, '') LIKE '%foundation_bagu.md%' THEN 0
+                        WHEN COALESCE(source_url, '') LIKE '%ai_product_foundation.md%' THEN 0
                         WHEN COALESCE(source_url, '') LIKE '%sample_questions.md%' THEN 2
                         ELSE 1
                     END ASC,

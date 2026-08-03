@@ -13,6 +13,7 @@
 - 部署到 GitHub Pages
 - 如果配置了钉钉机器人，会把 `today.md` 推送到手机
 - 如果配置了 `OBSIDIAN_PAT`，会自动拉取私有 Obsidian 仓库到 `data/obsidian`
+- 每日默认推送 8 道题；题库余量不足时，会在钉钉消息末尾提醒补充资料
 
 第一次使用需要在 GitHub 仓库配置：
 
@@ -124,6 +125,14 @@ data/raw/real_interviews/nowcoder-字节测开一面.md
 data/raw/real_interviews/github-测试开发八股.md
 data/raw/real_interviews/blog-安全测试面试题.txt
 ```
+
+牛客资料推荐放到：
+
+```text
+data/raw/real_interviews/nowcoder/
+```
+
+详细格式看 [docs/nowcoder_import_guide.md](docs/nowcoder_import_guide.md)。核心原则是：一篇面经一个 `.md/.txt`，保留来源链接，只整理题目和你自己的复盘，不要提交 Cookie、手机号、私信等隐私。
 
 然后执行：
 

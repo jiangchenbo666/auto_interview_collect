@@ -110,7 +110,7 @@ jobs:
               LLM_FLAG=""
               ;;
           esac
-          python -m src.main study $LLM_FLAG --no-open --process-limit 10 --html-output public/index.html --today-output public/today.md --bank-output public/questions.md
+          python -m src.main study $LLM_FLAG --no-open --limit 8 --process-limit 40 --low-inventory-threshold 30 --html-output public/index.html --today-output public/today.md --bank-output public/questions.md
           touch public/.nojekyll
 
       - name: Save interview database cache

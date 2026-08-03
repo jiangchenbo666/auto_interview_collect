@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from argparse import Namespace
 
-from src.main import cmd_study, prepend_page_link
+from src.main import append_inventory_notice, cmd_study, prepend_page_link
 from src.storage.db import init_db
 from src.storage import repository
 
@@ -28,6 +28,7 @@ def test_study_command_generates_outputs_without_refresh(tmp_path):
             use_llm=False,
             process_limit=5,
             limit=1,
+            low_inventory_threshold=30,
             today_output=str(today_output),
             html_output=str(html_output),
             bank_output=str(bank_output),
@@ -47,3 +48,17 @@ def test_prepend_page_link_adds_pages_entry():
 
     assert markdown.startswith("完整复习页：[https://example.github.io/project/]")
     assert "# 今日复习" in markdown
+
+
+def test_append_inventory_notice_warns_when_low():
+    markdown = append_inventory_notice(
+        "# 今日复习",
+        shown_count=6,
+        requested_count=8,
+        remaining_after_today=5,
+        low_inventory_threshold=30,
+    )
+
+    assert "资料库提醒" in markdown
+    assert "6/8" in markdown
+    assert "未复习可推送题约 5 道" in markdown

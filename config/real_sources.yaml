@@ -19,3 +19,19 @@ sources:
     type: public_url
     enabled: true
     url: https://www.xiaolincoding.com/interview/performance_testing.html
+  - name: Tencent Cloud Docker 面试题
+    type: public_url
+    enabled: true
+    url: https://cloud.tencent.com/developer/article/2474585
+  - name: TesterHome 最近面试题分享
+    type: public_url
+    enabled: true
+    url: https://testerhome.com/topics/31436
+  - name: VeloCode RAG Interview Questions
+    type: public_url
+    enabled: true
+    url: https://velocode.ai/blog/rag-interview-questions
+  - name: Harness Evals
+    type: public_url
+    enabled: true
+    url: https://github.com/harness/harness-evals

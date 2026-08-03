@@ -49,3 +49,17 @@ def test_build_today_html_renders_obsidian_evidence():
     assert "Obsidian Evidence" in html
     assert "权限测试项目" in html
     assert "data/obsidian/project.md" in html
+
+
+def test_build_today_html_renders_topic_type():
+    html = build_today_html(
+        [
+            {
+                "question": "MySQL 索引为什么常用 B+ 树？",
+                "category": "数据库",
+                "source_url": "data/raw/real_interviews/foundation_bagu.md",
+            }
+        ]
+    )
+
+    assert "题型：八股底盘" in html
