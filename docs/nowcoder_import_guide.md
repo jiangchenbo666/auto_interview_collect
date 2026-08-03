@@ -4,13 +4,29 @@
 
 ## 推荐目录
 
-把资料放到：
+最省事的方式：把复制粘贴的原始资料放到私有 Obsidian 仓库里：
+
+```text
+Obsidian-Vault/面经资料/待整理/
+```
+
+保存成 `.txt` 或 `.md` 都可以。Obsidian Git 会自动 push 到私有仓库，GitHub Actions 每天会拉取这个目录，并整理成规范 Markdown。
+
+本地公开仓库也支持一个收件箱目录：
+
+```text
+data/raw/inbox/
+```
+
+但因为 `auto_interview_collect` 是公开仓库，不建议在这里放包含隐私、账号、截图 OCR 文本的资料。
+
+整理后的 Markdown 会自动写到：
 
 ```text
 data/raw/real_interviews/nowcoder/
 ```
 
-这个目录会被 `python -m src.main study` 自动递归扫描。
+这个目录会被 `python -m src.main study` 自动递归扫描并导入题库。
 
 ## 推荐格式
 
@@ -20,6 +36,14 @@ data/raw/real_interviews/nowcoder/
 data/raw/real_interviews/nowcoder/nowcoder-ai-project-730.md
 data/raw/real_interviews/nowcoder/nowcoder-tencent-testdev-2026.md
 ```
+
+如果你懒得整理，直接在 `Obsidian-Vault/面经资料/待整理/` 下建一个 txt：
+
+```text
+2026-08-03-nowcoder-ai-project.txt
+```
+
+然后把牛客内容复制进去即可。工具会自动生成规范 md。
 
 内容建议这样写：
 
@@ -42,3 +66,12 @@ data/raw/real_interviews/nowcoder/nowcoder-tencent-testdev-2026.md
 - 不要把账号 Cookie、私信、个人手机号、面试官姓名等隐私写进去。
 - 可以摘录问题和你自己的复盘，不建议整篇复制受限页面内容。
 - 如果截图里是题目列表，优先手动整理成问题列表，工具抽题会更准。
+
+## 手动测试
+
+本地可以执行：
+
+```bash
+python -m src.main normalize-inbox
+python -m src.main study --no-refresh-sources --no-open
+```

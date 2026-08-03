@@ -129,10 +129,10 @@ data/raw/real_interviews/blog-安全测试面试题.txt
 牛客资料推荐放到：
 
 ```text
-data/raw/real_interviews/nowcoder/
+Obsidian-Vault/面经资料/待整理/
 ```
 
-详细格式看 [docs/nowcoder_import_guide.md](docs/nowcoder_import_guide.md)。核心原则是：一篇面经一个 `.md/.txt`，保留来源链接，只整理题目和你自己的复盘，不要提交 Cookie、手机号、私信等隐私。
+保存成 `.txt` 或 `.md` 都可以。Obsidian Git 会自动上传到私有仓库，GitHub Actions 会整理成规范 Markdown 并导入题库。详细格式看 [docs/nowcoder_import_guide.md](docs/nowcoder_import_guide.md)。
 
 然后执行：
 

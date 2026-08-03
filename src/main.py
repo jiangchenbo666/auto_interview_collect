@@ -20,6 +20,7 @@ from src.config_loader import get_db_path, get_obsidian_vault_path
 from src.crawlers.url_importer import fetch_url_text
 from src.knowledge.obsidian import retrieve_relevant_snippets
 from src.processors.extractor import extract_questions, is_noise_question
+from src.processors.inbox_normalizer import normalize_inbox_files
 from src.scheduler.daily_job import get_review_questions_for_today, rebuild_answers, process_pending_questions, run_daily_loop, run_daily_push
 from src.storage.db import init_db
 from src.storage import repository
@@ -32,6 +33,9 @@ DEFAULT_TODAY_HTML_OUTPUT = "data/exports/today.html"
 DEFAULT_BANK_OUTPUT = "data/exports/questions.md"
 DEFAULT_SOURCES_CONFIG = "config/real_sources.yaml"
 DEFAULT_REAL_INTERVIEWS_DIR = "data/raw/real_interviews"
+DEFAULT_INBOX_DIR = "data/raw/inbox"
+DEFAULT_OBSIDIAN_INBOX_DIR = "data/obsidian/面经资料/待整理"
+DEFAULT_NORMALIZED_INBOX_DIR = "data/raw/real_interviews/nowcoder"
 
 
 def cmd_init(args: argparse.Namespace) -> None:
@@ -72,6 +76,19 @@ def cmd_import_folder(args: argparse.Namespace) -> None:
     print(f"Files scanned: {len(files)}")
     print(f"Extracted {total_extracted} questions.")
     print(f"Accepted {total_accepted}, skipped {total_skipped}.")
+
+
+def cmd_normalize_inbox(args: argparse.Namespace) -> None:
+    """Convert pasted raw notes into normalized markdown interview files."""
+    result = normalize_inbox_files(
+        [Path(path) for path in args.inbox],
+        args.output,
+        overwrite=args.overwrite,
+    )
+    print(f"Inbox files scanned: {result.scanned}")
+    print(f"Normalized markdown written: {result.written}")
+    print(f"Skipped: {result.skipped}")
+    print(f"Output folder: {result.output_dir}")
 
 
 def cmd_import_url(args: argparse.Namespace) -> None:
@@ -229,6 +246,16 @@ def cmd_study(args: argparse.Namespace) -> None:
             config=args.sources_config,
         )
         cmd_refresh_sources(refresh_args)
+    if args.normalize_inbox:
+        result = normalize_inbox_files(
+            [args.inbox_dir, args.obsidian_inbox_dir],
+            args.normalized_inbox_dir,
+            overwrite=args.overwrite_inbox,
+        )
+        print(
+            "Inbox normalized: "
+            f"scanned={result.scanned} written={result.written} skipped={result.skipped}"
+        )
     if args.import_local:
         local_root = Path(args.real_dir)
         if local_root.exists():
@@ -507,6 +534,17 @@ def build_parser() -> argparse.ArgumentParser:
     add_db_argument(p_import_folder)
     p_import_folder.set_defaults(func=cmd_import_folder)
 
+    p_normalize = init_parser.add_parser("normalize-inbox", help="把复制粘贴的原始面经整理成规范 Markdown")
+    p_normalize.add_argument(
+        "--inbox",
+        action="append",
+        default=[DEFAULT_INBOX_DIR, DEFAULT_OBSIDIAN_INBOX_DIR],
+        help="待整理资料目录，可重复传入",
+    )
+    p_normalize.add_argument("--output", default=DEFAULT_NORMALIZED_INBOX_DIR)
+    p_normalize.add_argument("--overwrite", action="store_true")
+    p_normalize.set_defaults(func=cmd_normalize_inbox)
+
     p_import_url = init_parser.add_parser("import-url", help="导入一个公开 URL 中的真实面经/八股题")
     p_import_url.add_argument("url")
     p_import_url.add_argument("--source-type", default="public_url")
@@ -565,6 +603,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_study.add_argument("--low-inventory-threshold", type=int, default=30)
     p_study.add_argument("--sources-config", default=DEFAULT_SOURCES_CONFIG)
     p_study.add_argument("--real-dir", default=DEFAULT_REAL_INTERVIEWS_DIR)
+    p_study.add_argument("--normalize-inbox", action=argparse.BooleanOptionalAction, default=True)
+    p_study.add_argument("--inbox-dir", default=DEFAULT_INBOX_DIR)
+    p_study.add_argument("--obsidian-inbox-dir", default=DEFAULT_OBSIDIAN_INBOX_DIR)
+    p_study.add_argument("--normalized-inbox-dir", default=DEFAULT_NORMALIZED_INBOX_DIR)
+    p_study.add_argument("--overwrite-inbox", action="store_true")
     p_study.add_argument("--today-output", default=DEFAULT_TODAY_OUTPUT)
     p_study.add_argument("--html-output", default=DEFAULT_TODAY_HTML_OUTPUT)
     p_study.add_argument("--bank-output", default=DEFAULT_BANK_OUTPUT)
