@@ -19,6 +19,27 @@ def test_extract_questions_from_markdown():
     assert "什么是 SQL 注入？" in questions
 
 
+def test_extract_questions_from_nowcoder_multi_question_note():
+    text = """
+    牛客网-字节一面
+    问压力测试和测试流程
+
+    解题思路
+    - 正确答案：压力测试是性能测试的一种。
+
+    问接口自动化怎么实现的
+    - 正确答案：可以用 Python requests / pytest 分层封装。
+
+    1. 什么是幂等性？
+    """
+
+    questions = extract_questions(text)
+
+    assert "压力测试和测试流程" in questions
+    assert "接口自动化怎么实现的" in questions
+    assert "什么是幂等性？" in questions
+
+
 def test_extract_questions_filters_page_titles():
     text = """
     # 测试开发面试题全攻略 | 小林coding

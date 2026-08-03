@@ -10,6 +10,7 @@ from src.processors.cleaner import clean_text, normalize_question
 QUESTION_PATTERNS = [
     re.compile(r"^\s*(?:\d+[.)、]|[-*+]|#{1,6})\s*(.+)$"),
     re.compile(r"^\s*(?:Q|q)\d*[:：]\s*(.+)$"),
+    re.compile(r"^\s*问[：:\s]*(.+)$"),
 ]
 
 QUESTION_KEYWORDS = (
@@ -24,6 +25,14 @@ QUESTION_KEYWORDS = (
     "设计",
     "定位",
     "解释",
+    "压力测试",
+    "测试流程",
+    "压测",
+    "接口测试",
+    "自动化",
+    "性能测试",
+    "冒烟测试",
+    "回归测试",
 )
 
 NOISE_TITLE_KEYWORDS = (
@@ -37,6 +46,9 @@ NOISE_TITLE_KEYWORDS = (
     "地基不牢",
     "校招",
     "社招",
+    "牛客网",
+    "AI 工程",
+    "八股",
 )
 
 
@@ -45,6 +57,8 @@ def looks_like_question(line: str) -> bool:
     stripped = line.strip()
     if len(stripped) < 4 or len(stripped) > 120:
         return False
+    if stripped.startswith("问") and len(stripped) <= 80:
+        return True
     if is_noise_question(stripped):
         return False
     if stripped.endswith(("?", "？")):
@@ -55,6 +69,8 @@ def looks_like_question(line: str) -> bool:
 def is_noise_question(line: str) -> bool:
     """Return True for page titles/navigation headings, not real questions."""
     stripped = line.strip()
+    if is_source_label_line(stripped):
+        return True
     if "下面我" in stripped or "一个一个说" in stripped:
         return True
     if len(stripped) <= 8 and not stripped.endswith(("?", "？")):
@@ -71,6 +87,30 @@ def is_noise_question(line: str) -> bool:
     if stripped.endswith(("篇", "章", "目录")) and "？" not in stripped:
         return True
     return False
+
+
+def is_source_label_line(line: str) -> bool:
+    """Ignore file/source labels such as 牛客网-字节一面."""
+    stripped = line.strip().lstrip("#").strip()
+    lowered = stripped.lower()
+    answer_prefixes = (
+        "正确答案",
+        "解题思路",
+        "解答思路",
+        "深度知识讲解",
+        "伪代码示例",
+        "踩一下",
+    )
+    if stripped.startswith(answer_prefixes):
+        return True
+    return (
+        stripped == "牛客网"
+        or stripped.startswith("牛客网-")
+        or lowered == "ai"
+        or lowered.startswith("ai-")
+        or stripped.startswith("AI 工程")
+        or stripped.startswith(("八股-", "数据库-", "Linux-", "TCP-", "Docker-"))
+    )
 
 
 def has_question_marker(line: str) -> bool:
