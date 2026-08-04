@@ -44,6 +44,7 @@ def test_study_command_generates_outputs_without_refresh(tmp_path):
 
     assert today_output.exists()
     assert html_output.exists()
+    assert "待生成" not in today_output.read_text(encoding="utf-8")
     pushed = repository.get_questions_by_status(db_path, "pushed", limit=5)
     assert len(pushed) == 1
 

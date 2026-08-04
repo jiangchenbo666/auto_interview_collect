@@ -144,6 +144,56 @@ def test_daily_mixes_foundation_ai_nowcoder_and_public_sources(tmp_path):
     assert nowcoder_id in selected_ids
 
 
+def test_daily_only_returns_complete_answer_pairs_and_reuses_pushed_buckets(tmp_path):
+    db_path = tmp_path / "interview.db"
+    init_db(db_path)
+    incomplete_id = repository.insert_question(
+        db_path,
+        "不应该发布半成品吗？",
+        source_url="牛客网 | data/raw/real_interviews/nowcoder/牛客网.md",
+        source_type="curated_interview",
+    )
+    repository.update_question_category(db_path, incomplete_id, "测试基础")
+    for question, source_url, source_type, category in [
+        ("MySQL 索引为什么常用 B+ 树？", "data/raw/real_interviews/foundation_bagu.md", "foundation_bagu", "数据库"),
+        ("什么是 LLM evaluation harness？", "data/raw/real_interviews/ai_product_foundation.md", "ai_engineering", "AI 工程"),
+        ("牛客网里的接口自动化如何实现？", "牛客网1 | data/raw/real_interviews/nowcoder/牛客网1.md", "curated_interview", "接口测试"),
+    ]:
+        question_id = repository.insert_question(db_path, question, source_url=source_url, source_type=source_type)
+        repository.update_question_category(db_path, question_id, category)
+        repository.update_question_answer(db_path, question_id, "标准答案", "面试表达")
+        repository.mark_pushed(db_path, question_id)
+
+    rows = repository.get_pending_for_daily(db_path, limit=3, require_complete_answers=True)
+
+    assert incomplete_id not in {row["id"] for row in rows}
+    assert {row["source_type"] for row in rows} == {"foundation_bagu", "ai_engineering", "curated_interview"}
+
+
+def test_generation_candidates_follow_daily_mix_instead_of_old_id_order(tmp_path):
+    db_path = tmp_path / "interview.db"
+    init_db(db_path)
+    old_public = repository.insert_question(
+        db_path,
+        "旧的公开接口题",
+        source_url="https://example.com/old",
+        source_type="public_url",
+    )
+    for question, source_url, source_type in [
+        ("MySQL 索引题", "data/raw/real_interviews/foundation_bagu.md", "foundation_bagu"),
+        ("LLM Harness 题", "data/raw/real_interviews/ai_product_foundation.md", "ai_engineering"),
+        ("牛客网面经题", "牛客网1 | data/raw/real_interviews/nowcoder/牛客网1.md", "curated_interview"),
+    ]:
+        repository.insert_question(db_path, question, source_url=source_url, source_type=source_type)
+
+    rows = repository.get_generation_candidates(db_path, "raw", limit=4)
+
+    assert old_public in {row["id"] for row in rows}
+    assert {"foundation_bagu", "ai_engineering", "curated_interview"}.issubset(
+        {row["source_type"] for row in rows}
+    )
+
+
 def test_duplicate_nowcoder_source_promotes_existing_public_question(tmp_path):
     db_path = tmp_path / "interview.db"
     init_db(db_path)

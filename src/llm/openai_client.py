@@ -7,8 +7,8 @@ from src.push.wecom_bot import load_env_file
 
 
 DEFAULT_OPENAI_MODEL = "gpt-5"
-DEFAULT_LLM_TIMEOUT_SECONDS = 120.0
-DEFAULT_LLM_MAX_TOKENS = 1400
+DEFAULT_LLM_TIMEOUT_SECONDS = 300.0
+DEFAULT_LLM_MAX_TOKENS = 4096
 
 
 def has_openai_config() -> bool:
@@ -65,7 +65,7 @@ def llm_timeout_seconds() -> float:
 
 
 def llm_max_tokens() -> int:
-    """Read a response token cap so one interview answer does not run forever."""
+    """Read the provider response limit with a generous safe minimum."""
     raw_value = os.getenv("LLM_MAX_TOKENS", str(DEFAULT_LLM_MAX_TOKENS))
     try:
         return max(500, int(raw_value))
@@ -98,7 +98,7 @@ def build_prompt(
 1. 先输出“标准答案”，讲清楚知识点、方法、注意事项。
 2. 再输出“面试表达”，必须尽量结合上面的项目/经历/笔记内容。
 3. 不要编造笔记里没有的公司名、指标、系统名；没有证据时用“我会/我通常”表达。
-4. 语言自然，适合面试口述。
+4. 语言自然，适合面试口述。标准答案控制在 500-900 字，面试表达控制在 200-450 字，避免重复整段标准答案。
 
 请严格使用下面格式：
 

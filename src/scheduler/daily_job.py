@@ -33,7 +33,10 @@ def process_pending_questions(
 ) -> int:
     """Move pending questions through classify -> answer -> package steps."""
     profile = load_project_profile(profile_path)
-    raw_questions = repository.get_questions_by_status(db_path, "raw", limit)
+    # Process the same source mix that will be published today. Otherwise a
+    # large crawler import can keep new Obsidian/AI/bagu material waiting
+    # behind hundreds of older public questions.
+    raw_questions = repository.get_generation_candidates(db_path, "raw", limit)
     classified_count = 0
 
     for item in raw_questions:
@@ -42,7 +45,7 @@ def process_pending_questions(
         repository.update_question_category(db_path, item["id"], category, difficulty)
         classified_count += 1
 
-    classified = repository.get_questions_by_status(db_path, "classified", limit)
+    classified = repository.get_generation_candidates(db_path, "classified", limit)
     answered_count = 0
     for item in classified:
         print(f"[process] answer question #{item['id']}", flush=True)
@@ -133,11 +136,23 @@ def is_sunday(now: datetime | None = None) -> bool:
     return (now or datetime.now()).weekday() == 6
 
 
-def get_review_questions_for_today(db_path: str | Path, limit: int = 3) -> tuple[str, list[dict]]:
+def get_review_questions_for_today(
+    db_path: str | Path,
+    limit: int = 3,
+    require_complete_answers: bool = False,
+) -> tuple[str, list[dict]]:
     """Use weekly review on Sunday, otherwise normal daily questions."""
     if is_sunday():
-        return "weekly", repository.get_weekly_review_questions(db_path, limit=max(limit, 7))
-    return "daily", repository.get_pending_for_daily(db_path, limit)
+        return "weekly", repository.get_weekly_review_questions(
+            db_path,
+            limit=max(limit, 7),
+            require_complete_answers=require_complete_answers,
+        )
+    return "daily", repository.get_pending_for_daily(
+        db_path,
+        limit,
+        require_complete_answers=require_complete_answers,
+    )
 
 
 def run_daily_loop(

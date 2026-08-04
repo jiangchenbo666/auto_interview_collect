@@ -187,32 +187,54 @@ def get_questions_by_status(
     return [row_to_dict(row) for row in rows]
 
 
-def get_pending_for_daily(db_path: str | Path, limit: int = 3) -> list[dict[str, Any]]:
-    """Pick a mixed daily review set instead of one long same-topic queue."""
-    candidates = get_daily_candidates(db_path, max(limit * 30, 240))
+def get_pending_for_daily(
+    db_path: str | Path,
+    limit: int = 3,
+    require_complete_answers: bool = False,
+) -> list[dict[str, Any]]:
+    """Pick a complete, mixed daily review set instead of one long same-topic queue.
+
+    ``study`` enables ``require_complete_answers`` before it publishes a page,
+    so a scheduled DingTalk message can never contain a half-generated row.
+    The default stays compatible with the local ``daily`` preview command.
+    """
+    candidates = get_daily_candidates(
+        db_path,
+        max(limit * 100, 2_000),
+        require_complete_answers=require_complete_answers,
+    )
     return take_mixed_daily_questions(candidates, limit)
 
 
-def get_daily_candidates(db_path: str | Path, limit: int = 80) -> list[dict[str, Any]]:
-    """Fetch ready questions with broad source priority for later bucket mixing."""
+def get_daily_candidates(
+    db_path: str | Path,
+    limit: int = 80,
+    require_complete_answers: bool = False,
+) -> list[dict[str, Any]]:
+    """Fetch fully answered questions for later source-bucket mixing.
+
+    Previously pushed rows remain eligible. They are sorted behind unseen rows,
+    so the intended source balance survives after the first review cycle.
+    """
+    if require_complete_answers:
+        status_clause = "status IN ('packaged', 'answered', 'pushed')"
+        answer_clause = """
+              AND TRIM(COALESCE(answer, '')) <> ''
+              AND TRIM(COALESCE(project_answer, '')) <> ''
+              AND TRIM(COALESCE(answer, '')) <> TRIM(COALESCE(project_answer, ''))
+        """
+    else:
+        status_clause = "status IN ('packaged', 'answered', 'classified')"
+        answer_clause = ""
+
     with connect(db_path) as connection:
         rows = connection.execute(
-            """
+            f"""
             SELECT * FROM interview_questions
-            WHERE status IN ('packaged', 'answered', 'classified')
+            WHERE {status_clause}
+              {answer_clause}
             ORDER BY
-                CASE
-                    WHEN COALESCE(source_type, '') = 'nowcoder' THEN 0
-                    WHEN COALESCE(source_type, '') = 'curated_interview' THEN 0
-                    WHEN COALESCE(source_url, '') LIKE '%牛客网%' THEN 0
-                    WHEN COALESCE(source_url, '') LIKE '%面经%' THEN 0
-                    WHEN COALESCE(source_type, '') = 'ai_engineering' THEN 1
-                    WHEN COALESCE(source_url, '') LIKE '%foundation_bagu.md%' THEN 0
-                    WHEN COALESCE(source_url, '') LIKE '%ai_product_foundation.md%' THEN 0
-                    WHEN COALESCE(source_type, '') = 'foundation_bagu' THEN 1
-                    WHEN COALESCE(source_url, '') LIKE '%sample_questions.md%' THEN 2
-                    ELSE 1
-                END ASC,
+                CASE WHEN COALESCE(last_pushed_at, '') = '' THEN 0 ELSE 1 END ASC,
                 COALESCE(last_pushed_at, ''),
                 review_count ASC,
                 id DESC
@@ -224,7 +246,13 @@ def get_daily_candidates(db_path: str | Path, limit: int = 80) -> list[dict[str,
 
 
 def take_mixed_daily_questions(candidates: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
-    """Round-robin across source buckets: bagu, AI, Nowcoder/user notes, public, fallback."""
+    """Build the daily curriculum with an explicit source mix.
+
+    For the normal six-question plan, the desired order is two user-curated
+    interview questions, two CS foundation/bagu questions, one AI engineering
+    question and one public test-development question. A sparse bucket falls
+    back to the other buckets, so a new vault is still usable on day one.
+    """
     buckets = {
         "bagu": [],
         "ai": [],
@@ -235,26 +263,53 @@ def take_mixed_daily_questions(candidates: list[dict[str, Any]], limit: int) -> 
     for item in candidates:
         buckets[daily_bucket(item)].append(item)
 
-    bucket_order = ["nowcoder", "ai", "bagu", "public", "other"]
+    preferred_slots = ["nowcoder", "bagu", "ai", "nowcoder", "bagu", "public"]
+    fallback_order = ["nowcoder", "bagu", "ai", "public", "other"]
     selected: list[dict[str, Any]] = []
     selected_ids: set[int] = set()
 
+    def take_one(bucket_name: str) -> bool:
+        while buckets[bucket_name] and int(buckets[bucket_name][0]["id"]) in selected_ids:
+            buckets[bucket_name].pop(0)
+        if not buckets[bucket_name]:
+            return False
+        item = buckets[bucket_name].pop(0)
+        selected.append(item)
+        selected_ids.add(int(item["id"]))
+        return True
+
+    for bucket_name in preferred_slots[:limit]:
+        take_one(bucket_name)
+
     while len(selected) < limit:
         changed = False
-        for bucket in bucket_order:
-            while buckets[bucket] and int(buckets[bucket][0]["id"]) in selected_ids:
-                buckets[bucket].pop(0)
-            if not buckets[bucket]:
-                continue
-            item = buckets[bucket].pop(0)
-            selected.append(item)
-            selected_ids.add(int(item["id"]))
-            changed = True
+        for bucket_name in fallback_order:
             if len(selected) >= limit:
                 break
+            changed = take_one(bucket_name) or changed
         if not changed:
             break
     return selected
+
+
+def get_generation_candidates(
+    db_path: str | Path,
+    status: str,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Return new work in the same mixed order used by the daily curriculum."""
+    with connect(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT * FROM interview_questions
+            WHERE status = ?
+              AND TRIM(COALESCE(answer, '')) = ''
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (status, max(limit * 100, 2_000)),
+        ).fetchall()
+    return take_mixed_daily_questions([row_to_dict(row) for row in rows], limit)
 
 
 def daily_bucket(item: dict[str, Any]) -> str:
@@ -296,13 +351,25 @@ def count_unreviewed_ready_questions(db_path: str | Path) -> int:
     return int(row["count"]) if row else 0
 
 
-def get_weekly_review_questions(db_path: str | Path, limit: int = 10) -> list[dict[str, Any]]:
+def get_weekly_review_questions(
+    db_path: str | Path,
+    limit: int = 10,
+    require_complete_answers: bool = False,
+) -> list[dict[str, Any]]:
     """Pick recently reviewed questions for a Sunday weekly review."""
+    complete_clause = ""
+    if require_complete_answers:
+        complete_clause = """
+              AND TRIM(COALESCE(answer, '')) <> ''
+              AND TRIM(COALESCE(project_answer, '')) <> ''
+              AND TRIM(COALESCE(answer, '')) <> TRIM(COALESCE(project_answer, ''))
+        """
     with connect(db_path) as connection:
         rows = connection.execute(
-            """
+            f"""
             SELECT * FROM interview_questions
             WHERE status = 'pushed'
+              {complete_clause}
             ORDER BY last_pushed_at DESC, review_count DESC, id ASC
             LIMIT ?
             """,
@@ -310,9 +377,10 @@ def get_weekly_review_questions(db_path: str | Path, limit: int = 10) -> list[di
         ).fetchall()
         if len(rows) < limit:
             extra_rows = connection.execute(
-                """
+                f"""
                 SELECT * FROM interview_questions
                 WHERE status IN ('packaged', 'answered', 'classified')
+                  {complete_clause}
                 ORDER BY
                     CASE
                         WHEN COALESCE(source_url, '') LIKE '%foundation_bagu.md%' THEN 0

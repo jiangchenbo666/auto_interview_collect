@@ -247,7 +247,11 @@ def cmd_push_dingtalk(args: argparse.Namespace) -> None:
 def cmd_daily(args: argparse.Namespace) -> None:
     """Build today's review markdown; send it unless dry-run is enabled."""
     init_db(args.db)
-    mode, questions = get_review_questions_for_today(args.db, limit=args.limit)
+    mode, questions = get_review_questions_for_today(
+        args.db,
+        limit=args.limit,
+        require_complete_answers=True,
+    )
     markdown = build_daily_markdown_for_mode(mode, questions)
     if args.output:
         write_text_file(args.output, markdown)
@@ -314,7 +318,11 @@ def cmd_study(args: argparse.Namespace) -> None:
         use_llm=args.use_llm,
     )
     print("[stage] build markdown/html exports", flush=True)
-    mode, questions = get_review_questions_for_today(args.db, limit=args.limit)
+    mode, questions = get_review_questions_for_today(
+        args.db,
+        limit=args.limit,
+        require_complete_answers=True,
+    )
     remaining_after_today = max(
         0,
         repository.count_unreviewed_ready_questions(args.db) - len(questions),
